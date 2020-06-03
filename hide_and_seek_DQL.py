@@ -48,7 +48,7 @@ client_pool = MalmoPython.ClientPool()
 client_pool.add(MalmoPython.ClientInfo('127.0.0.1', 10000))
 client_pool.add(MalmoPython.ClientInfo('127.0.0.1', 10001))
 
-MalmoPython.setLogging("", MalmoPython.LoggingSeverityLevel.LOG_OFF)
+MalmoPython.setLogging("", MalmoPython.LoggingSeverityLevel.LOG_ALL)
 
 malmoutils.parse_command_line(agent_host1)
 malmoutils.parse_command_line(agent_host2)
@@ -297,17 +297,6 @@ class Agent(object):
                 logger.warn("Unknown action space for %s, ignoring." % cmds)
 
     # from gym
-    def _get_world_state(self):
-        # wait till we have got at least one observation or mission has ended
-        while True:
-            time.sleep(self.step_sleep)  # wait for 1ms to not consume entire CPU
-            world_state = self.agent_host.peekWorldState()
-            if world_state.number_of_observations_since_last_state > self.skip_steps or not world_state.is_mission_running:
-                break
-
-        return self.agent_host.getWorldState()
-
-    # from gym
     def _get_video_frame(self, world_state):
         # process the video frame
         if world_state.number_of_video_frames_since_last_state > 0:
@@ -343,7 +332,7 @@ class Agent(object):
             # take action
             self._take_action(action)
         # wait for the new state
-        world_state = self._get_world_state()
+        world_state = self.get_world_state()
 
         # log errors and control messages
         for error in world_state.errors:
@@ -472,7 +461,6 @@ if __name__ == '__main__':
             max_retries = 3
             for retry in range(max_retries):
                 try:
-
                     agent_host1.startMission(xml_mission, client_pool, agent_01_recording_spec, role1, experimentID1)
                     time.sleep(10)
                     print("test mission start 1")
@@ -499,7 +487,6 @@ if __name__ == '__main__':
             print(".", end="")
             time.sleep(0.1)
             world_state1 = agent_host1.getWorldState()
-
             for error in world_state1.errors:
                 print("Error:", error.text)
         print()

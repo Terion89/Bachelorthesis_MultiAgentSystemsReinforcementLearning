@@ -27,6 +27,7 @@ from malmo import MalmoPython
 
 import logging
 from malmo import malmoutils
+import traceback
 
 malmoutils.fix_print()
 
@@ -48,7 +49,7 @@ client_pool = MalmoPython.ClientPool()
 client_pool.add(MalmoPython.ClientInfo('127.0.0.1', 10000))
 client_pool.add(MalmoPython.ClientInfo('127.0.0.1', 10001))
 
-MalmoPython.setLogging("", MalmoPython.LoggingSeverityLevel.LOG_ALL)
+MalmoPython.setLogging("", MalmoPython.LoggingSeverityLevel.LOG_INFO)
 
 malmoutils.parse_command_line(agent_host1)
 malmoutils.parse_command_line(agent_host2)
@@ -63,6 +64,66 @@ if sys.version_info[0] == 2:
     import Tkinter as tk
 else:
     import tkinter as tk
+
+
+def safeStartMission(agent_host, mission, client_pool, recording, role, experimentId):
+    used_attempts = 0
+    max_attempts = 5
+    print("Calling startMission for role", role)
+    while True:
+        try:
+            agent_host.startMission(mission, client_pool, recording, role, experimentId)
+            break
+        except MalmoPython.MissionException as e:
+            errorCode = e.details.errorCode
+            if errorCode == MalmoPython.MissionErrorCode.MISSION_SERVER_WARMING_UP:
+                print("Server not quite ready yet - waiting...")
+                time.sleep(2)
+            elif errorCode == MalmoPython.MissionErrorCode.MISSION_INSUFFICIENT_CLIENTS_AVAILABLE:
+                print("Not enough available Minecraft instances running.")
+                used_attempts += 1
+                if used_attempts < max_attempts:
+                    print("Will wait in case they are starting up.", max_attempts - used_attempts, "attempts left.")
+                    time.sleep(2)
+            elif errorCode == MalmoPython.MissionErrorCode.MISSION_SERVER_NOT_FOUND:
+                print("Server not found - has the mission with role 0 been started yet?")
+                used_attempts += 1
+                if used_attempts < max_attempts:
+                    print("Will wait and retry.", max_attempts - used_attempts, "attempts left.")
+                    time.sleep(2)
+            else:
+                print("Waiting will not help here - bailing immediately.")
+                exit(1)
+        if used_attempts == max_attempts:
+            print("All chances used up - bailing now.")
+            exit(1)
+    print("startMission called okay.")
+    print()
+
+
+def safeWaitForStart(agent_hosts):
+    print("Waiting for the mission to start", end=' ')
+    start_flags = [False for a in agent_hosts]
+    start_time = time.time()
+    time_out = 120  # Allow two minutes for mission to start.
+    while not all(start_flags) and time.time() - start_time < time_out:
+        states = [a.getWorldState() for a in agent_hosts]
+        start_flags = [w.has_mission_begun for w in states]
+        errors = [e for w in states for e in w.errors]
+        if len(errors) > 0:
+            print("Errors waiting for mission start:")
+            for e in errors:
+                print(e.text)
+            print("Bailing now.")
+            exit(1)
+        time.sleep(0.1)
+        print(".", end=' ')
+    print()
+    if time.time() - start_time >= time_out:
+        print("Timed out waiting for mission to begin. Bailing.")
+        exit(1)
+    print("Mission has started.")
+    print()
 
 
 # 'processFrame' from depth_map_runner.py example
@@ -281,7 +342,7 @@ class Agent(object):
             actions = [actions]
 
         # send appropriate command for different actions
-        for spc, cmds, acts in zip(self.action_spaces, self.action_names, actions):
+        for spc, cmds, acts in zip(self.n_action_spaces, self.action_names, actions):
             if isinstance(spc, spaces.Discrete):
                 logger.debug(cmds[acts])
                 self.agent_host.sendCommand(cmds[acts])
@@ -325,9 +386,9 @@ class Agent(object):
             return None
 
     # from gym
-    def step(self, action):
+    def step(self, action, agent_host):
         # take the action only if mission is still running
-        world_state = self.agent_host.peekWorldState()
+        world_state = agent_host.getWorldState()
         if world_state.is_mission_running:
             # take action
             self._take_action(action)
@@ -366,32 +427,34 @@ class Agent(object):
 
         return image, reward, done, info
 
-    def run(self):
+    def run(self, agent, agent_host):
 
         total_reward = 0
 
         done = False
         score = 0
+        action = "move 1" # initial step
 
         while not done:
-            action = agent1.choose_action(observation)
-            observation_, reward, done, info = Agent.step(action)
+
+            observation_, reward, done, info = Agent.step(self, action, agent_host)
             score += reward
-            agent1.remember(observation, action, reward, observation_, done)
+            agent.remember(observation, action, reward, observation_, done)
             observation = observation_
-            agent1.learn()
+            action = agent.choose_action(observation)
+            agent.learn()
 
         # save the epsilon
         eps_history.append(agent1.epsilon)
-        scores.append(score)
+        rewards.append(score)
 
-        avg_score = np.mean(scores[max(0,i-100):(i+1)])
+        avg_score = np.mean(rewards[max(0,i-100):(i+1)])
         print('episode', i, 'score %.2f' % score, 'average score %.2f' % avg_score)
 
         if i % 10 == 0 and i > 0:
             agent1.save_model()
 
-        return scores
+        return rewards
 
 
 # main
@@ -403,7 +466,7 @@ if __name__ == '__main__':
     agent1 = Agent(gamma=0.99, epsilon=1.0, alpha=0.0005, input_dims=8, n_actions=4, mem_size=1000000, batch_size=64, epsilon_end=0.01)
     agent2 = Agent(gamma=0.99, epsilon=1.0, alpha=0.0005, input_dims=8, n_actions=4, mem_size=1000000, batch_size=64, epsilon_end=0.01)
 
-    scores = []
+    rewards = []
     eps_history = []
 
     # load the mission file
@@ -433,19 +496,17 @@ if __name__ == '__main__':
     print(recordingsDirectory2)
 
     if recordingsDirectory1 and recordingsDirectory2:
-            print("test 1")
             agent_01_recording_spec.recordRewards()
             agent_01_recording_spec.recordObservations()
             agent_01_recording_spec.recordCommands()
             agent_02_recording_spec.recordRewards()
             agent_02_recording_spec.recordObservations()
             agent_02_recording_spec.recordCommands()
-            print("test 1 nachher")
+            print("recordings Directory")
             if agent_host1.receivedArgument("record_video") and agent_host2.receivedArgument("record_video"):
-                print("test 2")
                 agent_01_recording_spec.recordMP4(24, 2000000)
                 agent_02_recording_spec.recordMP4(24, 2000000)
-                print("test 2 nachher")
+                print("started Video")
 
     for i in range(num_repeats):
 
@@ -453,35 +514,40 @@ if __name__ == '__main__':
         print('Repeat %d of %d' % (i+1, num_repeats))
         n_actions = ["movenorth 1", "movesouth 1", "movewest 1", "moveeast 1"]
 
-        for retry in range(max_retries):
-            if recordingsDirectory1 and recordingsDirectory2:
-                print("test 3")
-                agent_01_recording_spec.setDestination(recordingsDirectory1 + "//" + "Mission1_" + str(retry + 1) + ".tgz")
-                agent_02_recording_spec.setDestination(recordingsDirectory2 + "//" + "Mission2_" + str(retry + 1) + ".tgz")
-            max_retries = 3
-            for retry in range(max_retries):
-                try:
-                    agent_host1.startMission(xml_mission, client_pool, agent_01_recording_spec, role1, experimentID1)
-                    time.sleep(10)
-                    print("test mission start 1")
+        # for retry in range(max_retries):
+        if recordingsDirectory1 and recordingsDirectory2:
+            print("test 3")
+            agent_01_recording_spec.setDestination(recordingsDirectory1 + "//" + "Mission1_" + str(0 + 1) + ".tgz")
+            agent_02_recording_spec.setDestination(recordingsDirectory2 + "//" + "Mission2_" + str(0 + 1) + ".tgz")
+        # max_retries = 3
+        # for retry in range(max_retries):
+        # try:
+        safeStartMission(agent_host1, xml_mission, client_pool, agent_01_recording_spec, role1, experimentID1)
+        time.sleep(10)
+        print("test mission start 1")
+        safeStartMission(agent_host2, xml_mission, client_pool, agent_02_recording_spec, role2, experimentID2)
+        time.sleep(10)
+        print("test mission start 2")
+        time.sleep(10)
+        safeWaitForStart([agent_host1, agent_host2])
 
-                    agent_host2.startMission(xml_mission, client_pool, agent_02_recording_spec, role2, experimentID2)
-                    time.sleep(10)
-                    print("test mission start 2")
-                    break
-                except RuntimeError as e:
-                    if retry == max_retries - 1:
-                        logger.error("Error starting mission: %s" % e)
-                        exit(1)
-                    else:
-                        time.sleep(2)
+            # agent_host1.startMission(xml_mission, client_pool, agent_01_recording_spec, role1, experimentID1)
+
+            #agent_host2.startMission(xml_mission, client_pool, agent_02_recording_spec, role2, experimentID2)
+
+        # except RuntimeError as e:
+            # if retry == max_retries - 1:
+            #     logger.error("Error starting mission: %s" % e)
+            #     exit(1)
+            # else:
+            #     time.sleep(2)
 
         # world state
         print("Mission will start soon........", end=' ')
         world_state1 = agent_host1.getWorldState()
         world_state2 = agent_host2.getWorldState()
-        print("world_state 1: ", world_state1)
-        print("world_state 2: ", world_state2)
+        #print("world_state 1: ", world_state1)
+        #print("world_state 2: ", world_state2)
 
         while not world_state1.has_mission_begun:
             print(".", end="")
@@ -494,31 +560,37 @@ if __name__ == '__main__':
         # Videostream processing
         while world_state1.is_mission_running and world_state2.is_mission_running:
             world_state1 = agent_host1.getWorldState()
-            world_state2 = agent_host1.getWorldState()
-            while world_state1.number_of_video_frames_since_last_state < 1 and \
-                    world_state2.number_of_video_frames_since_last_state < 1 and \
-                    world_state1.is_mission_running and world_state2.is_mission_running:
+            world_state2 = agent_host2.getWorldState()
+            while world_state1.is_mission_running and world_state2.is_mission_running:
                 logger.info("Waiting for frames...")
-                time.sleep(0.05)
                 world_state1 = agent_host1.getWorldState()
-                world_state2 = agent_host1.getWorldState()
+                world_state2 = agent_host2.getWorldState()
+                try:
+                    logger.info("loop as long as there is just a frame on one video stream...")
+                    world_state1.video_frames[0].pixels
+                    world_state2.video_frames[0].pixels
+                    break
+                except IndexError as e:
+                    time.sleep(1)
+                    continue
 
             logger.info("Got frame!")
 
-            if world_state1.is_mission_running and world_state2.is_mission_running:
+            if world_state1.is_mission_running:
                 processFrame(world_state1.video_frames[0].pixels)
                 processFrame(world_state2.video_frames[0].pixels)
 
-                agent_host1.sendCommand("turn " + str(current_yaw_delta_from_depth))
-                agent_host2.sendCommand("turn " + str(current_yaw_delta_from_depth))
+                #agent_host1.sendCommand("turn " + str(current_yaw_delta_from_depth))
+                #agent_host2.sendCommand("turn " + str(current_yaw_delta_from_depth))
 
-        # run the agents in the world, reward at first just for the seeker
-        cumulative_reward1 = agent1.run(agent_host1)
-        cumulative_reward2 = agent2.run(agent_host2)
-        print('Cumulative reward: %d' % cumulative_reward1)
-        # print('Cumulative reward: %d' % cumulative_reward2)
-        cumulative_rewards1 += [cumulative_reward1]
-        # cumulative_rewards2 += [cumulative_reward2]
+                logger.info("starting the agent now...................")
+                # run the agents in the world, reward at first just for the seeker
+                cumulative_reward1 = agent1.run(agent1, agent_host1)
+                cumulative_reward2 = agent2.run(agent2, agent_host2)
+                print('Cumulative reward: %d' % cumulative_reward1)
+                # print('Cumulative reward: %d' % cumulative_reward2)
+                cumulative_rewards1 += [cumulative_reward1]
+                # cumulative_rewards2 += [cumulative_reward2]
 
         time.sleep(0.5)
 

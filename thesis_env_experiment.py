@@ -65,7 +65,6 @@ available functions:
 
 
 class ThesisEnvExperiment(gym.Env):
-
     """
     initialize agents and give commandline permissions
     """
@@ -77,7 +76,6 @@ class ThesisEnvExperiment(gym.Env):
 
     def __init__(self):
         super(ThesisEnvExperiment, self).__init__()
-
         """
         load the mission file
         format: XML
@@ -261,6 +259,9 @@ class ThesisEnvExperiment(gym.Env):
         return np.clip(a, self.action_space.low, self.action_space.high)
 
     def dqn_q_values_and_neuronal_net(self, args, action_space, obs_size, obs_space):
+        """
+        learning process
+        """
         if isinstance(action_space, spaces.Box):
             action_size = action_space.low.size
             # Use NAF to apply DQN to continuous action spaces
@@ -464,7 +465,9 @@ class ThesisEnvExperiment(gym.Env):
 
 
     def reset_world(self):
-
+        """
+        reset the arena and start the missions per agent
+        """
         print("force world reset........")
         if self.forceWorldReset:
             self.mission_spec.forceWorldReset()
@@ -720,6 +723,9 @@ class ThesisEnvExperiment(gym.Env):
             return None
 
     def save_results(self, t, overall_reward_agent_Tom, overall_reward_agent_Jerry):
+        """
+        save the results in results.txt
+        """
         datei = open('results.txt', 'a')
         datei.write("-------------- ROUND %i --------------\n" % (t))
         datei.write("Reward Tom: %i, Reward Jerry: %i \n\n" % (overall_reward_agent_Tom, overall_reward_agent_Jerry))

@@ -87,7 +87,8 @@ class ThesisEnvExperiment(gym.Env):
         self.client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001)]
         self.mc_process = None
         self.screen = None
-
+        # self.already_removed_marker_tom = 0
+        # self.already_removed_marker_jerry = 0
 
     def init(self, client_pool=None, start_minecraft=None,
              continuous_discrete=True, add_noop_command=None,
@@ -177,8 +178,8 @@ class ThesisEnvExperiment(gym.Env):
         """
         dummy image just for the first observation
         """
-        self.last_image1 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.int8)
-        self.last_image2 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.int8)
+        self.last_image1 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.float32)
+        self.last_image2 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.float32)
         self._create_action_space()
 
         # mission recording
@@ -215,7 +216,7 @@ class ThesisEnvExperiment(gym.Env):
             cmds = self.mission_spec.getAllowedCommands(0, ch)
             for command in cmds:
                 logger.debug(ch + ":" + command)
-                if command in ["movenorth", "movesouth", "moveeast", "movewest", "attack"]:
+                if command in ["movenorth", "movesouth", "moveeast", "movewest", "attack", "turn"]:
                     discrete_actions.append(command + " 1")
                     discrete_actions.append(command + " -1")
                 else:
@@ -262,6 +263,7 @@ class ThesisEnvExperiment(gym.Env):
         """
         learning process
         """
+
         if isinstance(action_space, spaces.Box):
             action_size = action_space.low.size
             # Use NAF to apply DQN to continuous action spaces
@@ -324,8 +326,8 @@ class ThesisEnvExperiment(gym.Env):
         reward of actual state is calculated and summed up with the overall reward
         RETURN: image, reward, done, info
         """
-        world_state1 = self.agent_host1.peekWorldState()
 
+        world_state1 = self.agent_host1.peekWorldState()
         world_state2 = self.agent_host2.peekWorldState()
         if agent_num == 1:
             if world_state1.is_mission_running:
@@ -432,8 +434,7 @@ class ThesisEnvExperiment(gym.Env):
             if used_attempts == max_attempts:
                 print("All chances used up - bailing now.")
                 exit(1)
-        print("startMission called okay.")
-        print()
+        print("startMission called okay. \n")
 
     def safeWaitForStart(self, agent_hosts):
         """
@@ -460,17 +461,14 @@ class ThesisEnvExperiment(gym.Env):
         if time.time() - start_time >= time_out:
             print("Timed out waiting for mission to begin. Bailing.")
             exit(1)
-        print("Mission has started.")
-        print()
-
+        print("Mission has started. \n")
 
     def reset_world(self):
         """
         reset the arena and start the missions per agent
         """
         print("force world reset........")
-        if self.forceWorldReset:
-            self.mission_spec.forceWorldReset()
+        self.mission_spec.forceWorldReset()
         # this seemed to increase probability of success in first try
         time.sleep(0.1)
         # Attempt to start a mission
@@ -480,6 +478,7 @@ class ThesisEnvExperiment(gym.Env):
             
             try:
                 print("starting mission........")
+                time.sleep(3)
                 self.safeStartMission(self.agent_host1, self.mission_spec, self.client_pool, self.mission_record_spec,
                                       0, "experiment_id")
 
@@ -512,6 +511,7 @@ class ThesisEnvExperiment(gym.Env):
                 logger.warn(error.text)
 
         logger.info("Mission running")
+
         return self._get_video_frame(world_state1, 1), self._get_video_frame(world_state2, 2)
 
     def render_first_agent(self, mode='human', close=False):
@@ -676,12 +676,6 @@ class ThesisEnvExperiment(gym.Env):
         if world_state.number_of_video_frames_since_last_state > 0:
             assert len(world_state.video_frames) == 1
             frame = world_state.video_frames[0]
-            #print("frame width: ", frame.width)
-            #print("frame height: ", frame.height)
-            #print("frame channels: ", frame.channels)
-            #dt = np.dtype(float)
-            #dt = dt.newbyteorder('>')
-            #image = np.array([300, 400, 4], dtype=float)
             reshaped = np.zeros((self.video_height * self.video_width * self.video_depth), dtype=np.float32)
             image = np.frombuffer(frame.pixels, dtype=np.int8)
             #print(reshaped.shape)
@@ -722,12 +716,189 @@ class ThesisEnvExperiment(gym.Env):
         else:
             return None
 
-    def save_results(self, t, overall_reward_agent_Tom, overall_reward_agent_Jerry):
+    def save_results(self, t, overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step):
         """
         save the results in results.txt
         """
         datei = open('results.txt', 'a')
         datei.write("-------------- ROUND %i --------------\n" % (t))
-        datei.write("Reward Tom: %i, Reward Jerry: %i \n\n" % (overall_reward_agent_Tom, overall_reward_agent_Jerry))
+        datei.write("Reward Tom: %i, Reward Jerry: %i , Time: %f \n\n" % (overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step))
         datei.close()
 
+    def get_position_in_arena(self, world_state):
+        """
+        get (x,y,z) Positioncoordinates of agent
+        RETURN: x,y,z
+        """
+        x = 0
+        y = 0
+        z = 0
+
+        if len(world_state.observations) >= 1:
+            msg = world_state.observations[-1].text
+            ob = json.loads(msg)
+
+            if "XPos" in ob and "ZPos" in ob and "YPos" in ob:
+                x = ob[u'XPos']
+                y = ob[u'YPos']
+                z = ob[u'ZPos']
+        return x, y, z
+
+    def remove_Toms_lapis(self):
+        self.mission_spec.drawBlock(12, 46, 3, "air")
+        print("removed Toms lapis")
+
+    def remove_Jerrys_lapis(self):
+        self.mission_spec.drawBlock(3, 46, 11, "air")
+        print("removed Jerrys lapis")
+
+    def draw_flag_new(self):
+        self.mission_spec.drawBlock(1, 47, 13, "log")
+        self.mission_spec.drawBlock(14, 47, 1, "coal")
+
+    def distance(self):
+        """
+        check if agents are to near to eachother
+        move apart if so
+        """
+        world_state1 = self.agent_host1.peekWorldState()
+        world_state2 = self.agent_host2.peekWorldState()
+
+        x1, y1, z1 = self.get_position_in_arena(world_state1)
+        x2, y2, z2 = self.get_position_in_arena(world_state2)
+
+        print("Tom   x1, y1, z1: %i %i %i " % (x1, y1, z1))
+        print("Jerry x2, y2, z2: %i %i %i " % (x2, y2, z2))
+
+        if (x2 == x1+1 and z2 == z1+1) or (x2 == x1 and z2 == z1+1) or (x2 == x1-1 and z2 == z1+1)or \
+           (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or (x1 == x2 - 1 and z1 == z2 - 1):
+            print("---------------------------------------------------- stop!! agents too close!")
+            self.agent_host1.sendCommand("movenorth 1")
+            self.agent_host2.sendCommand("movesouth 1")
+
+        if (x2 == x1+1 and z2 == z1) or (x1 == x2 - 1 and z1 == z2):
+            print("---------------------------------------------------- stop!! agents too close!")
+            self.agent_host1.sendCommand("movewest 1")
+            self.agent_host2.sendCommand("moveeast 1")
+
+        if (x2 == x1-1 and z2 == z1) or (x1 == x2 + 1 and z1 == z2):
+            print("---------------------------------------------------- stop!! agents too close!")
+            self.agent_host1.sendCommand("moveeast 1")
+            self.agent_host2.sendCommand("movewest 1")
+
+        if (x2 == x1+1 and z2 == z1-1) or (x2 == x1 and z2 == z1-1) or (x2 == x1-1 and z2 == z1-1)or \
+            (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or (x1 == x2 - 1 and z1 == z2 + 1):
+            print("---------------------------------------------------- stop!! agents too close!")
+            self.agent_host1.sendCommand("movesouth 1")
+            self.agent_host2.sendCommand("movenorth 1")
+
+            #self.agent_host1.sendCommand("Go away!")
+            #self.agent_host2.sendCommand("Go away!")
+
+    def check_inventory_old_lapis(self):
+        """
+        checks, if the agent got the flag in his inventory
+        if so, the destination lapis is removed, so he can finish his mission and bring the flag in
+        """
+        world_state1 = self.agent_host1.peekWorldState()
+        world_state2 = self.agent_host2.peekWorldState()
+
+        last_inventory_tom = 0
+        inventory_string_tom = ""
+        last_inventory_jerry = 0
+        inventory_string_jerry = ""
+        if len(world_state1.observations) > 1 and (world_state2.observations) > 1:
+            msg1 = world_state1.observations[-1].text
+            msg2 = world_state2.observations[-1].text
+            obs1 = json.loads(msg1)
+            obs2 = json.loads(msg2)
+
+            if u'inventory' in obs1 and last_inventory_tom != obs1[u'inventory']:
+                #if self.already_removed_marker_tom == 1:
+                    # do nothing more
+                #    logger.log("Lapis_block is already removed.")
+                if inventory_string_tom.find('log') != -1: # and self.already_removed_marker_tom == 0:
+                    self.remove_Toms_lapis()
+                    #self.already_removed_marker_tom = 1
+                else:
+                    last_inventory_tom = obs1[u'inventory']
+                    inventory_string_tom = json.dumps(last_inventory_tom[0])
+                    print("Toms last inventory: ", inventory_string_tom)
+
+            if u'inventory' in obs2 and last_inventory_jerry != obs2[u'inventory']:
+
+                #if self.already_removed_marker_jerry == 1:
+                    # do nothing more
+                    #logger.log("Lapis_block is already removed.")
+                if inventory_string_jerry.find('coal') != -1: # and self.already_removed_marker_jerry == 0:
+                    self.remove_Jerrys_lapis()
+                    #self.already_removed_marker_jerry = 1
+                else:
+                    last_inventory_jerry = obs2[u'inventory']
+                    inventory_string_jerry = json.dumps(last_inventory_jerry[0])
+                    print("Jerrys last inventory: ", inventory_string_jerry)
+
+    def check_inventory(self):
+        """
+        checks, if the agent got the flag in his inventory
+        """
+        world_state1 = self.agent_host1.peekWorldState()
+        world_state2 = self.agent_host2.peekWorldState()
+
+        last_inventory_tom = 0
+        inventory_string_tom = ""
+        last_inventory_jerry = 0
+        inventory_string_jerry = ""
+        if len(world_state1.observations) > 1 and (world_state2.observations) > 1:
+            msg1 = world_state1.observations[-1].text
+            msg2 = world_state2.observations[-1].text
+            obs1 = json.loads(msg1)
+            obs2 = json.loads(msg2)
+            x1, y1, z1 = self.get_position_in_arena(world_state1)
+            x2, y2, z2 = self.get_position_in_arena(world_state1)
+
+            if u'inventory' in obs1 and last_inventory_tom != obs1[u'inventory']:
+                # (12,46,0),(12,46,1),(12,46,2),(12,46,3)
+                # (13,46,0),(13,46,1),(13,46,2),(13,46,3)
+                # (14,46,0),(14,46,1),(14,46,2),(14,46,3)
+                if inventory_string_tom.find('log') != -1 and (
+                (x1 == 12 and y1 == 46 and z1 == 0) or (x1 == 12 and y1 == 46 and z1 == 1) or
+                (x1 == 12 and y1 == 46 and z1 == 2) or (x1 == 12 and y1 == 46 and z1 == 3) or
+                (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
+                (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3) or
+                (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
+                (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3)):
+                    # runter schauen, Block plazieren, draufspringen
+                    self.agent_host1.sendCommand("look 1")
+                    time.sleep(0.1)
+                    self.agent_host1.sendCommand("use 1")
+                    time.sleep(0.5)
+                    self.agent_host1.sendCommand("jumpmove 1")
+                    time.sleep(0.5)
+                else:
+                    last_inventory_tom = obs1[u'inventory']
+                    inventory_string_tom = json.dumps(last_inventory_tom[0])
+                    print("Toms last inventory: ", inventory_string_tom)
+
+            if u'inventory' in obs2 and last_inventory_jerry != obs2[u'inventory']:
+                # (0,46,11),(0,46,12),(0,46,13),(0,46,14)
+                # (1,46,11),(1,46,12),(1,46,13),(1,46,14)
+                # (2,46,11),(2,46,12),(2,46,13),(2,46,14)
+                if inventory_string_jerry.find('coal') != -1 and (
+                (x2 == 0 and y2 == 46 and z2 == 11) or (x2 == 0 and y2 == 46 and z2 == 12) or
+                (x2 == 0 and y2 == 46 and z2 == 13) or (x2 == 0 and y2 == 46 and z2 == 14) or
+                (x2 == 1 and y2 == 46 and z2 == 11) or (x2 == 1 and y2 == 46 and z2 == 12) or
+                (x2 == 1 and y2 == 46 and z2 == 13) or (x2 == 1 and y2 == 46 and z2 == 14) or
+                (x2 == 2 and y2 == 46 and z2 == 11) or (x2 == 2 and y2 == 46 and z2 == 12) or
+                (x2 == 2 and y2 == 46 and z2 == 13) or (x2 == 2 and y2 == 46 and z2 == 14)):
+                    # runter schauen, Block plazieren, draufspringen
+                    self.agent_host2.sendCommand("look 1")
+                    time.sleep(0.1)
+                    self.agent_host2.sendCommand("use 1")
+                    time.sleep(0.5)
+                    self.agent_host2.sendCommand("jumpmove 1")
+                    time.sleep(0.5)
+                else:
+                    last_inventory_jerry = obs2[u'inventory']
+                    inventory_string_jerry = json.dumps(last_inventory_jerry[0])
+                    print("Jerrys last inventory: ", inventory_string_jerry)

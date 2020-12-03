@@ -194,12 +194,6 @@ if __name__ == '__main__':
                            logger=logger,
                            )
 
-    # train agent
-
-
-    """ initial observation """
-    obs1, obs2 = env.reset_world()
-
     episode_r = 0
     episode_idx = 0
 
@@ -207,8 +201,6 @@ if __name__ == '__main__':
     r2 = 0
     done1 = False
     done2 = False
-    done1_fin = False
-    done2_fin = False
 
     t = step_offset
     if hasattr(tom, 't') and hasattr(jerry, 't'):
@@ -217,17 +209,16 @@ if __name__ == '__main__':
 
     episode_len = 0
     max_episode_len = None
-
+    time_stamp_start = time.time()
+    print("actual time: ", time_stamp_start)
 
     while t < steps:
+        """ initial observation """
+        obs1, obs2 = env.reset_world()
         try:
             while not done1 and not done2:
-                env.mission_spec.drawBlock(1, 47, 13, "log")
-                env.mission_spec.drawBlock(14, 47, 1, "coal_ore")
 
-                #env.render_first_agent()
-                #env.render_second_agent()
-
+                time_stamp_actual = time.time()
 
                 print("calculating next steps...")
                 action1 = tom.act_and_train(obs1, r1)
@@ -239,6 +230,10 @@ if __name__ == '__main__':
                 overall_reward_agent_Tom += r1
                 overall_reward_agent_Jerry += r2
 
+                """
+                check if agents run too close
+                """
+                env.distance()
 
                 print("Actual Reward Tom:   ", overall_reward_agent_Tom)
                 print("Actual Reward Jerry: ", overall_reward_agent_Jerry)
@@ -248,18 +243,21 @@ if __name__ == '__main__':
                     hook(env, tom, t)
                     hook(env, jerry, t)
 
-                if done1:
-                    pass
+                env.check_inventory()
 
-                if done2:
-                    pass
-                if done1 and done2:
+                """
+                end mission when time is over and start over again
+                """
+                time_step = time_stamp_actual - time_stamp_start
+                print("mission time up: %i sec" % (time_step))
+
+                if (done1 and done2) or (time_step > 960):  # 960 = 16 min
                     tom.stop_episode_and_train(obs1, r1, done=done)
                     jerry.stop_episode_and_train(obs2, r2, done=done)
-                    print("outdir: %s step: %s episode: %s R: %s" % (outdir, t, episode_idx, episode_r))
-                    print("statistics: ", tom.get_statistics())
-                    print("statistics: ", jerry.get_statistics())
-                    t += 1
+                    print("outdir: %s step: %s " % (outdir, t))
+                    print("Tom's statistics:   ", tom.get_statistics())
+                    print("Jerry's statistics: ", jerry.get_statistics())
+
                     # Save the final model
                     save_agent(tom, t, outdir, logger, suffix='_finish_01')
                     save_agent(jerry, t, outdir, logger, suffix='_finish_02')
@@ -269,46 +267,57 @@ if __name__ == '__main__':
                     print("Final Reward Tom:   ", overall_reward_agent_Tom)
                     print("Final Reward Jerry: ", overall_reward_agent_Jerry)
 
-                    if evaluator1 and evaluator2 is not None:
+                    env.save_results(t, overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
+
+                    time_stamp_start = time.time()
+                    print("actual time: ", time_stamp_start)
+
+                    t += 1
+                    # reset world
+
+                    r1 = 0
+                    r2 = 0
+                    done1 = False
+                    done2 = False
+
+                    overall_reward_agent_Jerry = 0
+                    overall_reward_agent_Tom = 0
+
+                    time_stamp_start = time.time()
+                    print("actual time: ", time_stamp_start)
+
+                    """if evaluator1 and evaluator2 is not None:
                         evaluator1.evaluate_if_necessary(
                             t=t, episodes=episode_idx + 1)
                         evaluator2.evaluate_if_necessary(
                             t=t, episodes=episode_idx + 1)
                         if (successful_score is not None and
                                 evaluator1.max_score >= successful_score and evaluator2.max_score >= successful_score):
-                            break
-                    if t == steps:
-                        print("Mission-Set finished. Check results and parameters. Start over.")
-                        break
-                    # Start a new episode
-                    episode_r = 0
-                    episode_idx += 1
-                    episode_len = 0
-                    obs1, obs2 = env.reset_world()
-                    r1 = 0
-                    overall_reward_agent_Tom =0
-                    r2 = 0
-                    overall_reward_agent_Jerry =0
-                if checkpoint_freq and t % checkpoint_freq == 0:
-                    save_agent(tom, t, outdir, logger, suffix='_checkpoint_01')
-                    save_agent(jerry, t, outdir, logger, suffix='_checkpoint_01')
-
-            """
-            choose random actions for testing the functions
-            """
-            #action1 = env.action_names[0][random.randint(0, len(env.action_names[0])-1)]
-            #time.sleep(0.5)
-            #action2 = env.action_names[0][random.randint(0, len(env.action_names[0])-1)]
-
-
-
+                            break"""
+                if t == 1000:
+                    print("Mission-Set finished. Check results and parameters. Start over.")
+                    break
         except (Exception, KeyboardInterrupt):
             # Save the current model before being killed
             save_agent(tom, t, outdir, logger, suffix='_except01')
             save_agent(jerry, t, outdir, logger, suffix='_except02')
             raise
 
+        # Start a new episode
 
+
+
+
+    """if checkpoint_freq and t % checkpoint_freq == 0:
+        save_agent(tom, t, outdir, logger, suffix='_checkpoint_01')
+        save_agent(jerry, t, outdir, logger, suffix='_checkpoint_01')"""
+
+    """
+    choose random actions for testing the functions
+    """
+    #action1 = env.action_names[0][random.randint(0, len(env.action_names[0])-1)]
+    #time.sleep(0.5)
+    #action2 = env.action_names[0][random.randint(0, len(env.action_names[0])-1)]
 
 
 

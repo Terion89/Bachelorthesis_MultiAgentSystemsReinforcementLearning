@@ -56,7 +56,7 @@ available functions:
     render_first_agent(mode='human', close=False)
     render_second_agent(mode='human', close=False)
     _close()
-    _seed(see=None)
+    _seed(seed=None)
     _take_action(actions, agent_num)
     _get_world_state()
     _get_video_frame(world_state, agent_num)
@@ -69,10 +69,15 @@ class ThesisEnvExperiment(gym.Env):
     initialize agents and give commandline permissions
     """
     metadata = {'render.modes': ['human']}
+    """ Agent 01: Tom """
     agent_host1 = MalmoPython.AgentHost()
     malmoutils.parse_command_line(agent_host1)
+    """ Agent 02: Jerry """
     agent_host2 = MalmoPython.AgentHost()
     malmoutils.parse_command_line(agent_host2)
+    """ Agent 03: Skye """
+    agent_host3 = MalmoPython.AgentHost()
+    malmoutils.parse_command_line(agent_host3)
 
     def __init__(self):
         super(ThesisEnvExperiment, self).__init__()
@@ -84,7 +89,7 @@ class ThesisEnvExperiment(gym.Env):
         self.load_mission_file(mission_file)
         print("Mission loaded: Capture the Flag")
 
-        self.client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001)]
+        self.client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002)]
         self.mc_process = None
         self.screen = None
         # self.already_removed_marker_tom = 0
@@ -230,8 +235,8 @@ class ThesisEnvExperiment(gym.Env):
         if len(discrete_actions) > 0:
             self.action_spaces.append(spaces.Discrete(len(discrete_actions)))
             self.action_names.append(discrete_actions)
-            #print("action_names:  ", self.action_names)
-            #print("action_spaces: ", self.action_spaces)
+            # print("action_names:  ", self.action_names)
+            # print("action_spaces: ", self.action_spaces)
 
         # if there is only one action space, don't wrap it in Tuple
         if len(self.action_spaces) == 1:
@@ -255,7 +260,6 @@ class ThesisEnvExperiment(gym.Env):
         self.mission_spec = MalmoPython.MissionSpec(mission_xml, True)
         logger.info("Loaded mission: " + self.mission_spec.getSummary())
 
-
     def clip_action_filter(self, a):
         return np.clip(a, self.action_space.low, self.action_space.high)
 
@@ -277,23 +281,23 @@ class ThesisEnvExperiment(gym.Env):
             explorer = explorers.AdditiveOU(sigma=ou_sigma)
         else:
             n_actions = action_space.n
-            #print("n_actions: ", n_actions)
+            # print("n_actions: ", n_actions)
             q_func = q_functions.FCStateQFunctionWithDiscreteAction(
                 obs_size, n_actions,
                 n_hidden_channels=args.n_hidden_channels,
                 n_hidden_layers=args.n_hidden_layers)
-            #print("q_func ", q_func)
+            # print("q_func ", q_func)
             # Use epsilon-greedy for exploration
             explorer = explorers.LinearDecayEpsilonGreedy(
                 args.start_epsilon, args.end_epsilon, args.final_exploration_steps,
                 action_space.sample)
-            #print("explorer: ", explorer)
+            # print("explorer: ", explorer)
 
         if args.noisy_net_sigma is not None:
             links.to_factorized_noisy(q_func, sigma_scale=args.noisy_net_sigma)
             # Turn off explorer
             explorer = explorers.Greedy()
-        #print("obs_space.low : ", obs_space.shape)
+        # print("obs_space.low : ", obs_space.shape)
         chainerrl.misc.draw_computational_graph(
             [q_func(np.zeros_like(obs_space.low, dtype=np.float32)[None])],
             os.path.join(args.outdir, 'model'))
@@ -312,12 +316,11 @@ class ThesisEnvExperiment(gym.Env):
         else:
             rbuf = replay_buffer.ReplayBuffer(rbuf_capacity)
 
-        #print("--q_func: ", q_func)
-        #print("--opt: ", opt)
-        #print("--rbuf: ", rbuf)
-        #print("--explorer: ", explorer)
+        # print("--q_func: ", q_func)
+        # print("--opt: ", opt)
+        # print("--rbuf: ", rbuf)
+        # print("--explorer: ", explorer)
         return q_func, opt, rbuf, explorer
-
 
     def step_generating(self, action, agent_num):
         """
@@ -410,6 +413,7 @@ class ThesisEnvExperiment(gym.Env):
         while True:
             try:
                 agent_host.startMission(mission, client_pool, recording, role, experimentId)
+
                 break
             except MalmoPython.MissionException as e:
                 errorCode = e.details.errorCode
@@ -468,25 +472,35 @@ class ThesisEnvExperiment(gym.Env):
         reset the arena and start the missions per agent
         """
         print("force world reset........")
+        mission_file = 'capture_the_flag_xml_mission_DQL.xml'
+
+        self.load_mission_file(mission_file)
+
         self.mission_spec.forceWorldReset()
+        time.sleep(20)
         # this seemed to increase probability of success in first try
         time.sleep(0.1)
         # Attempt to start a mission
         print(self.client_pool)
 
         for retry in range(self.max_retries + 1):
-            
+
             try:
                 print("starting mission........")
                 time.sleep(3)
+                time.sleep(20)
                 self.safeStartMission(self.agent_host1, self.mission_spec, self.client_pool, self.mission_record_spec,
                                       0, "experiment_id")
 
                 time.sleep(4)
                 self.safeStartMission(self.agent_host2, self.mission_spec, self.client_pool, self.mission_record_spec,
                                       1, "experiment_id")
+
+                time.sleep(4)
+                self.safeStartMission(self.agent_host3, self.mission_spec, self.client_pool, self.mission_record_spec,
+                                      2, "experiment_id")
                 time.sleep(3)
-                agent_hosts = [self.agent_host1, self.agent_host2]
+                agent_hosts = [self.agent_host1, self.agent_host2, self.agent_host3]
                 self.safeWaitForStart(agent_hosts)
                 print("mission successfully started.....")
                 break
@@ -520,11 +534,11 @@ class ThesisEnvExperiment(gym.Env):
         update pygame window for every taken step
         """
         reshaped_pic = np.array(self.last_image1, dtype=float)
-        reshaped_picture_01 = reshaped_pic[:, :, 0:3] # 3 dimensions
+        reshaped_picture_01 = reshaped_pic[:, :, 0:3]  # 3 dimensions
         if mode == 'rgb_array':
             return reshaped_picture_01
         elif mode == 'human':
-            #print(self.last_image1.shape)
+            # print(self.last_image1.shape)
             try:
                 import pygame
             except ImportError as e:
@@ -539,7 +553,7 @@ class ThesisEnvExperiment(gym.Env):
                     pygame_width = self.video_width * 2
                     self.screen = pygame.display.set_mode((pygame_width, self.video_height))
                 img1 = pygame.surfarray.make_surface(reshaped_picture_01.swapaxes(0, 1))
-                #img1 = pygame.surfarray.make_surface(self.last_image1.swapaxes(0, 1))
+                # img1 = pygame.surfarray.make_surface(self.last_image1.swapaxes(0, 1))
                 self.screen.blit(img1, (0, 0))
                 pygame.display.update()
         else:
@@ -551,11 +565,11 @@ class ThesisEnvExperiment(gym.Env):
         update pygame window for every taken step
         """
         reshaped_picture = np.array(self.last_image2, dtype=float)
-        reshaped_picture_02 = reshaped_picture[:, :, 0:3] # 3 dimensions
+        reshaped_picture_02 = reshaped_picture[:, :, 0:3]  # 3 dimensions
         if mode == 'rgb_array':
             return reshaped_picture_02
         elif mode == 'human':
-            #print(self.last_image2.shape)
+            # print(self.last_image2.shape)
             try:
                 import pygame
             except ImportError as e:
@@ -570,7 +584,7 @@ class ThesisEnvExperiment(gym.Env):
                     pygame_width = self.video_width * 2
                     self.screen = pygame.display.set_mode((pygame_width, self.video_height))
                 img2 = pygame.surfarray.make_surface(reshaped_picture_02.swapaxes(0, 1))
-                #img2 = pygame.surfarray.make_surface(self.last_image2.swapaxes(0, 1))
+                # img2 = pygame.surfarray.make_surface(self.last_image2.swapaxes(0, 1))
                 self.screen.blit(img2,
                                  (self.video_width, 0))  # second window is rendered beside first window, same thread
                 pygame.display.update()
@@ -584,8 +598,7 @@ class ThesisEnvExperiment(gym.Env):
         """
         frame = world_state.video_frames[0]
         reshaped_pic = np.array(frame, dtype=float)
-        reshaped_picture_01 = reshaped_pic[:, :, 0:3] # 3 dimensions
-
+        reshaped_picture_01 = reshaped_pic[:, :, 0:3]  # 3 dimensions
 
         if mode == 'human':
             try:
@@ -602,7 +615,7 @@ class ThesisEnvExperiment(gym.Env):
                     pygame_width = self.video_width * 2
                     self.screen = pygame.display.set_mode((pygame_width, self.video_height))
                 img1 = pygame.surfarray.make_surface(reshaped_picture_01.swapaxes(0, 1))
-                #img1 = pygame.surfarray.make_surface(self.last_image1.swapaxes(0, 1))
+                # img1 = pygame.surfarray.make_surface(self.last_image1.swapaxes(0, 1))
                 self.screen.blit(img1, (0, 0))
                 pygame.display.update()
         else:
@@ -666,7 +679,6 @@ class ThesisEnvExperiment(gym.Env):
 
         return self.agent_host.getWorldState()
 
-
     def _get_video_frame(self, world_state, agent_num):
         """
         process video frame for called agent
@@ -678,14 +690,14 @@ class ThesisEnvExperiment(gym.Env):
             frame = world_state.video_frames[0]
             reshaped = np.zeros((self.video_height * self.video_width * self.video_depth), dtype=np.float32)
             image = np.frombuffer(frame.pixels, dtype=np.int8)
-            #print(reshaped.shape)
+            # print(reshaped.shape)
             for i in range(360000):
                 reshaped[i] = image[i]
 
-            #reshaped_picture_02 = reshaped_picture[:, :, 0:3]  # 3 dimensions
-            #print("reshaped: ", reshaped)
-            image = np.frombuffer(frame.pixels, dtype=np.float32) # 300x400 = 120000 Werte // np.float32
-            image = reshaped.reshape((frame.height, frame.width, frame.channels)) # 300x400x3 = 360000
+            # reshaped_picture_02 = reshaped_picture[:, :, 0:3]  # 3 dimensions
+            # print("reshaped: ", reshaped)
+            image = np.frombuffer(frame.pixels, dtype=np.float32)  # 300x400 = 120000 Werte // np.float32
+            image = reshaped.reshape((frame.height, frame.width, frame.channels))  # 300x400x3 = 360000
             # logger.debug(image)
             if agent_num == 1:
                 self.last_image1 = image
@@ -722,7 +734,8 @@ class ThesisEnvExperiment(gym.Env):
         """
         datei = open('results.txt', 'a')
         datei.write("-------------- ROUND %i --------------\n" % (t))
-        datei.write("Reward Tom: %i, Reward Jerry: %i , Time: %f \n\n" % (overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step))
+        datei.write("Reward Tom: %i, Reward Jerry: %i , Time: %f \n\n" % (
+        overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step))
         datei.close()
 
     def get_position_in_arena(self, world_state):
@@ -770,30 +783,30 @@ class ThesisEnvExperiment(gym.Env):
         print("Tom   x1, y1, z1: %i %i %i " % (x1, y1, z1))
         print("Jerry x2, y2, z2: %i %i %i " % (x2, y2, z2))
 
-        if (x2 == x1+1 and z2 == z1+1) or (x2 == x1 and z2 == z1+1) or (x2 == x1-1 and z2 == z1+1)or \
-           (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or (x1 == x2 - 1 and z1 == z2 - 1):
+        if (x2 == x1 + 1 and z2 == z1 + 1) or (x2 == x1 and z2 == z1 + 1) or (x2 == x1 - 1 and z2 == z1 + 1) or \
+                (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or (x1 == x2 - 1 and z1 == z2 - 1):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movenorth 1")
             self.agent_host2.sendCommand("movesouth 1")
 
-        if (x2 == x1+1 and z2 == z1) or (x1 == x2 - 1 and z1 == z2):
+        if (x2 == x1 + 1 and z2 == z1) or (x1 == x2 - 1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movewest 1")
             self.agent_host2.sendCommand("moveeast 1")
 
-        if (x2 == x1-1 and z2 == z1) or (x1 == x2 + 1 and z1 == z2):
+        if (x2 == x1 - 1 and z2 == z1) or (x1 == x2 + 1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("moveeast 1")
             self.agent_host2.sendCommand("movewest 1")
 
-        if (x2 == x1+1 and z2 == z1-1) or (x2 == x1 and z2 == z1-1) or (x2 == x1-1 and z2 == z1-1)or \
-            (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or (x1 == x2 - 1 and z1 == z2 + 1):
+        if (x2 == x1 + 1 and z2 == z1 - 1) or (x2 == x1 and z2 == z1 - 1) or (x2 == x1 - 1 and z2 == z1 - 1) or \
+                (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or (x1 == x2 - 1 and z1 == z2 + 1):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movesouth 1")
             self.agent_host2.sendCommand("movenorth 1")
 
-            #self.agent_host1.sendCommand("Go away!")
-            #self.agent_host2.sendCommand("Go away!")
+            # self.agent_host1.sendCommand("Go away!")
+            # self.agent_host2.sendCommand("Go away!")
 
     def check_inventory_old_lapis(self):
         """
@@ -814,12 +827,12 @@ class ThesisEnvExperiment(gym.Env):
             obs2 = json.loads(msg2)
 
             if u'inventory' in obs1 and last_inventory_tom != obs1[u'inventory']:
-                #if self.already_removed_marker_tom == 1:
-                    # do nothing more
+                # if self.already_removed_marker_tom == 1:
+                # do nothing more
                 #    logger.log("Lapis_block is already removed.")
-                if inventory_string_tom.find('log') != -1: # and self.already_removed_marker_tom == 0:
+                if inventory_string_tom.find('log') != -1:  # and self.already_removed_marker_tom == 0:
                     self.remove_Toms_lapis()
-                    #self.already_removed_marker_tom = 1
+                    # self.already_removed_marker_tom = 1
                 else:
                     last_inventory_tom = obs1[u'inventory']
                     inventory_string_tom = json.dumps(last_inventory_tom[0])
@@ -827,12 +840,12 @@ class ThesisEnvExperiment(gym.Env):
 
             if u'inventory' in obs2 and last_inventory_jerry != obs2[u'inventory']:
 
-                #if self.already_removed_marker_jerry == 1:
-                    # do nothing more
-                    #logger.log("Lapis_block is already removed.")
-                if inventory_string_jerry.find('coal') != -1: # and self.already_removed_marker_jerry == 0:
+                # if self.already_removed_marker_jerry == 1:
+                # do nothing more
+                # logger.log("Lapis_block is already removed.")
+                if inventory_string_jerry.find('coal') != -1:  # and self.already_removed_marker_jerry == 0:
                     self.remove_Jerrys_lapis()
-                    #self.already_removed_marker_jerry = 1
+                    # self.already_removed_marker_jerry = 1
                 else:
                     last_inventory_jerry = obs2[u'inventory']
                     inventory_string_jerry = json.dumps(last_inventory_jerry[0])
@@ -862,12 +875,12 @@ class ThesisEnvExperiment(gym.Env):
                 # (13,46,0),(13,46,1),(13,46,2),(13,46,3)
                 # (14,46,0),(14,46,1),(14,46,2),(14,46,3)
                 if inventory_string_tom.find('log') != -1 and (
-                (x1 == 12 and y1 == 46 and z1 == 0) or (x1 == 12 and y1 == 46 and z1 == 1) or
-                (x1 == 12 and y1 == 46 and z1 == 2) or (x1 == 12 and y1 == 46 and z1 == 3) or
-                (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
-                (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3) or
-                (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
-                (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3)):
+                        (x1 == 12 and y1 == 46 and z1 == 0) or (x1 == 12 and y1 == 46 and z1 == 1) or
+                        (x1 == 12 and y1 == 46 and z1 == 2) or (x1 == 12 and y1 == 46 and z1 == 3) or
+                        (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
+                        (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3) or
+                        (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
+                        (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3)):
                     # runter schauen, Block plazieren, draufspringen
                     self.agent_host1.sendCommand("look 1")
                     time.sleep(0.1)
@@ -885,12 +898,12 @@ class ThesisEnvExperiment(gym.Env):
                 # (1,46,11),(1,46,12),(1,46,13),(1,46,14)
                 # (2,46,11),(2,46,12),(2,46,13),(2,46,14)
                 if inventory_string_jerry.find('coal') != -1 and (
-                (x2 == 0 and y2 == 46 and z2 == 11) or (x2 == 0 and y2 == 46 and z2 == 12) or
-                (x2 == 0 and y2 == 46 and z2 == 13) or (x2 == 0 and y2 == 46 and z2 == 14) or
-                (x2 == 1 and y2 == 46 and z2 == 11) or (x2 == 1 and y2 == 46 and z2 == 12) or
-                (x2 == 1 and y2 == 46 and z2 == 13) or (x2 == 1 and y2 == 46 and z2 == 14) or
-                (x2 == 2 and y2 == 46 and z2 == 11) or (x2 == 2 and y2 == 46 and z2 == 12) or
-                (x2 == 2 and y2 == 46 and z2 == 13) or (x2 == 2 and y2 == 46 and z2 == 14)):
+                        (x2 == 0 and y2 == 46 and z2 == 11) or (x2 == 0 and y2 == 46 and z2 == 12) or
+                        (x2 == 0 and y2 == 46 and z2 == 13) or (x2 == 0 and y2 == 46 and z2 == 14) or
+                        (x2 == 1 and y2 == 46 and z2 == 11) or (x2 == 1 and y2 == 46 and z2 == 12) or
+                        (x2 == 1 and y2 == 46 and z2 == 13) or (x2 == 1 and y2 == 46 and z2 == 14) or
+                        (x2 == 2 and y2 == 46 and z2 == 11) or (x2 == 2 and y2 == 46 and z2 == 12) or
+                        (x2 == 2 and y2 == 46 and z2 == 13) or (x2 == 2 and y2 == 46 and z2 == 14)):
                     # runter schauen, Block plazieren, draufspringen
                     self.agent_host2.sendCommand("look 1")
                     time.sleep(0.1)

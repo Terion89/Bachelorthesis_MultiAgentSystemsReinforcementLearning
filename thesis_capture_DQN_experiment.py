@@ -23,6 +23,7 @@ import numpy as np
 
 import chainerrl
 from chainerrl.agents.dqn import DQN
+from thesis.observer import OBSERVER
 from chainerrl import experiments
 from chainerrl import explorers
 from chainerrl import links
@@ -45,18 +46,12 @@ if __name__ == '__main__':
     overall_reward_agent_Tom = 0
     overall_reward_agent_Jerry = 0
 
-    #max_size = 1000
-    #state_shape = (84, 84, 3)
-
-    #buf_01 = ReplayMemory(max_size, state_shape)
-    #buf_02 = ReplayMemory(max_size, state_shape)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--outdir', type=str, default='results',
                         help='Directory path to save output files.'
                              ' If it does not exist, it will be created.')
     parser.add_argument('--env', type=str, default='ThesisEnvExperiment')
-    parser.add_argument('--seed', type=int, default=0,
+    parser.add_argument('--seed', type=int, default=1423,
                         help='Random seed [0, 2 ** 32)')
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--final-exploration-steps',
@@ -92,7 +87,7 @@ if __name__ == '__main__':
 
 
     """ initialize clientpool and environment """
-    client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001)]
+    client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001),  ('127.0.0.1', 10002)]
     env.init(start_minecraft=False, client_pool=client_pool)
 
     test = True
@@ -143,6 +138,7 @@ if __name__ == '__main__':
                 target_update_method=args.target_update_method,
                 soft_update_tau=args.soft_update_tau,
                 )
+    skye = OBSERVER()
 
     if args.load:
         tom.load(args.load)
@@ -161,7 +157,6 @@ if __name__ == '__main__':
     logger = logger or logging.getLogger(__name__)
 
     checkpoint_freq = None
-    train_max_episode_len = None
     step_offset = 0
     eval_max_episode_len = None
     successful_score = None
@@ -211,10 +206,11 @@ if __name__ == '__main__':
     max_episode_len = None
     time_stamp_start = time.time()
     print("actual time: ", time_stamp_start)
+    """ initial observation """
+
+    obs1, obs2 = env.reset_world()
 
     while t < steps:
-        """ initial observation """
-        obs1, obs2 = env.reset_world()
         try:
             while not done1 and not done2:
 
@@ -251,7 +247,10 @@ if __name__ == '__main__':
                 time_step = time_stamp_actual - time_stamp_start
                 print("mission time up: %i sec" % (time_step))
 
-                if (done1 and done2) or (time_step > 960):  # 960 = 16 min
+                if (done1 and done2) or (time_step > 690):  # 960 = 16 min
+                    #env.agent_host1.sendCommand("quit")
+                    #env.agent_host2.sendCommand("quit")
+                    #env.agent_host3.sendCommand("quit")
                     tom.stop_episode_and_train(obs1, r1, done=done)
                     jerry.stop_episode_and_train(obs2, r2, done=done)
                     print("outdir: %s step: %s " % (outdir, t))
@@ -285,7 +284,7 @@ if __name__ == '__main__':
 
                     time_stamp_start = time.time()
                     print("actual time: ", time_stamp_start)
-
+                    obs1, obs2 = env.reset_world()
                     """if evaluator1 and evaluator2 is not None:
                         evaluator1.evaluate_if_necessary(
                             t=t, episodes=episode_idx + 1)

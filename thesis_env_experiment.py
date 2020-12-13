@@ -79,6 +79,9 @@ class ThesisEnvExperiment(gym.Env):
     agent_host3 = MalmoPython.AgentHost()
     malmoutils.parse_command_line(agent_host3)
 
+    flag_captured_tom = False
+    flag_captured_jerry = False
+
     def __init__(self):
         super(ThesisEnvExperiment, self).__init__()
         """
@@ -92,6 +95,7 @@ class ThesisEnvExperiment(gym.Env):
         self.client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002)]
         self.mc_process = None
         self.screen = None
+        self.mission_end = False
         # self.already_removed_marker_tom = 0
         # self.already_removed_marker_jerry = 0
 
@@ -136,27 +140,15 @@ class ThesisEnvExperiment(gym.Env):
         if observeChat:
             self.mission_spec.observeChat()
 
-        if allowContinuousMovement or allowDiscreteMovement or allowAbsoluteMovement:
+        if allowDiscreteMovement:
             # if there are any parameters, remove current command handlers first
             self.mission_spec.removeAllCommandHandlers()
-
-            if allowContinuousMovement is True:
-                self.mission_spec.allowAllContinuousMovementCommands()
-            elif isinstance(allowContinuousMovement, list):
-                for cmd in allowContinuousMovement:
-                    self.mission_spec.allowContinuousMovementCommand(cmd)
 
             if allowDiscreteMovement is True:
                 self.mission_spec.allowAllDiscreteMovementCommands()
             elif isinstance(allowDiscreteMovement, list):
                 for cmd in allowDiscreteMovement:
                     self.mission_spec.allowDiscreteMovementCommand(cmd)
-
-            if allowAbsoluteMovement is True:
-                self.mission_spec.allowAllAbsoluteMovementCommands()
-            elif isinstance(allowAbsoluteMovement, list):
-                for cmd in allowAbsoluteMovement:
-                    self.mission_spec.allowAbsoluteMovementCommand(cmd)
 
         if start_minecraft:
             # start Minecraft process assigning port dynamically
@@ -351,12 +343,12 @@ class ThesisEnvExperiment(gym.Env):
         if agent_num == 1:
 
             # self.agent_host1.sendCommand(action)
-            time.sleep(0.1)
+            #time.sleep(0.1)
             for r in world_state1.rewards:
                 reward1 += r.getValue()
         else:
             # self.agent_host2.sendCommand(action)
-            time.sleep(0.1)
+            #time.sleep(0.1)
             for r in world_state2.rewards:
                 reward2 += r.getValue()
 
@@ -402,82 +394,13 @@ class ThesisEnvExperiment(gym.Env):
         else:
             return image2, reward2, done2, info2
 
-    def safeStartMission(self, agent_host, mission, client_pool, recording, role, experimentId):
-        """
-        safe start to provide a safe initialization
-        wait for slow clients
-        """
-        used_attempts = 0
-        max_attempts = 5
-        print("Calling startMission for role", role)
-        while True:
-            try:
-                agent_host.startMission(mission, client_pool, recording, role, experimentId)
-
-                break
-            except MalmoPython.MissionException as e:
-                errorCode = e.details.errorCode
-                if errorCode == MalmoPython.MissionErrorCode.MISSION_SERVER_WARMING_UP:
-                    print("Server not quite ready yet - waiting...")
-                    time.sleep(2)
-                elif errorCode == MalmoPython.MissionErrorCode.MISSION_INSUFFICIENT_CLIENTS_AVAILABLE:
-                    print("Not enough available Minecraft instances running.")
-                    used_attempts += 1
-                    if used_attempts < max_attempts:
-                        print("Will wait in case they are starting up.", max_attempts - used_attempts, "attempts left.")
-                        time.sleep(2)
-                elif errorCode == MalmoPython.MissionErrorCode.MISSION_SERVER_NOT_FOUND:
-                    print("Server not found - has the mission with role 0 been started yet?")
-                    used_attempts += 1
-                    if used_attempts < max_attempts:
-                        print("Will wait and retry.", max_attempts - used_attempts, "attempts left.")
-                        time.sleep(2)
-                else:
-                    print("Waiting will not help here - bailing immediately.")
-                    exit(1)
-            if used_attempts == max_attempts:
-                print("All chances used up - bailing now.")
-                exit(1)
-        print("startMission called okay. \n")
-
-    def safeWaitForStart(self, agent_hosts):
-        """
-        function must be placed after safeStartMission
-        wait for slow client connectins
-        """
-        print("Waiting for the mission to start", end=' ')
-        start_flags = [False for a in agent_hosts]
-        start_time = time.time()
-        time_out = 120  # Allow two minutes for mission to start.
-        while not all(start_flags) and time.time() - start_time < time_out:
-            states = [a.getWorldState() for a in agent_hosts]
-            start_flags = [w.has_mission_begun for w in states]
-            errors = [e for w in states for e in w.errors]
-            if len(errors) > 0:
-                print("Errors waiting for mission start:")
-                for e in errors:
-                    print(e.text)
-                print("Bailing now.")
-                exit(1)
-            time.sleep(0.1)
-            print(".", end=' ')
-        print()
-        if time.time() - start_time >= time_out:
-            print("Timed out waiting for mission to begin. Bailing.")
-            exit(1)
-        print("Mission has started. \n")
-
-    def reset_world(self):
+    def reset_world(self, experiment_ID):
         """
         reset the arena and start the missions per agent
         """
         print("force world reset........")
-        mission_file = 'capture_the_flag_xml_mission_DQL.xml'
-
-        self.load_mission_file(mission_file)
-
-        self.mission_spec.forceWorldReset()
-        time.sleep(20)
+        self.flag_captured_tom = False
+        self.flag_captured_jerry = False
         # this seemed to increase probability of success in first try
         time.sleep(0.1)
         # Attempt to start a mission
@@ -486,23 +409,33 @@ class ThesisEnvExperiment(gym.Env):
         for retry in range(self.max_retries + 1):
 
             try:
-                print("starting mission........")
-                time.sleep(3)
-                time.sleep(20)
-                self.safeStartMission(self.agent_host1, self.mission_spec, self.client_pool, self.mission_record_spec,
-                                      0, "experiment_id")
+                print("starting missions........")
+                time.sleep(5)
+                print("3")
+                self.agent_host1.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
+                                                0, experiment_ID)
+                time.sleep(5)
+                print("2")
+                self.agent_host2.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
+                                              1, experiment_ID)
+                time.sleep(5)
+                print("1")
+                self.agent_host3.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
+                                              2, experiment_ID)
 
-                time.sleep(4)
-                self.safeStartMission(self.agent_host2, self.mission_spec, self.client_pool, self.mission_record_spec,
-                                      1, "experiment_id")
+                #self.safeStartMission(self.agent_host1, )
 
-                time.sleep(4)
-                self.safeStartMission(self.agent_host3, self.mission_spec, self.client_pool, self.mission_record_spec,
-                                      2, "experiment_id")
-                time.sleep(3)
-                agent_hosts = [self.agent_host1, self.agent_host2, self.agent_host3]
-                self.safeWaitForStart(agent_hosts)
-                print("mission successfully started.....")
+                #time.sleep(4)
+                #self.safeStartMission(self.agent_host2, self.mission_spec, self.client_pool, self.mission_record_spec,
+                #                      1, experiment_ID)
+
+                #time.sleep(4)
+                #self.safeStartMission(self.agent_host3, self.mission_spec, self.client_pool, self.mission_record_spec,
+                #                      2, experiment_ID)
+                #time.sleep(3)
+                #agent_hosts = [self.agent_host1, self.agent_host2, self.agent_host3]
+                #self.safeWaitForStart(agent_hosts)
+                print("0 \nmissions successfully started.....")
                 break
             except RuntimeError as e:
                 if retry == self.max_retries:
@@ -528,98 +461,6 @@ class ThesisEnvExperiment(gym.Env):
 
         return self._get_video_frame(world_state1, 1), self._get_video_frame(world_state2, 2)
 
-    def render_first_agent(self, mode='human', close=False):
-        """
-        render first agent
-        update pygame window for every taken step
-        """
-        reshaped_pic = np.array(self.last_image1, dtype=float)
-        reshaped_picture_01 = reshaped_pic[:, :, 0:3]  # 3 dimensions
-        if mode == 'rgb_array':
-            return reshaped_picture_01
-        elif mode == 'human':
-            # print(self.last_image1.shape)
-            try:
-                import pygame
-            except ImportError as e:
-                raise logging.error.DependencyNotInstalled(
-                    "{}. (HINT: install pygame using `pip install pygame`".format(e))
-
-            if close:
-                pygame.quit()
-            else:
-                if self.screen is None:
-                    pygame.init()
-                    pygame_width = self.video_width * 2
-                    self.screen = pygame.display.set_mode((pygame_width, self.video_height))
-                img1 = pygame.surfarray.make_surface(reshaped_picture_01.swapaxes(0, 1))
-                # img1 = pygame.surfarray.make_surface(self.last_image1.swapaxes(0, 1))
-                self.screen.blit(img1, (0, 0))
-                pygame.display.update()
-        else:
-            raise logging.error.UnsupportedMode("Unsupported render mode: " + mode)
-
-    def render_second_agent(self, mode='human', close=False):
-        """
-        render second agent
-        update pygame window for every taken step
-        """
-        reshaped_picture = np.array(self.last_image2, dtype=float)
-        reshaped_picture_02 = reshaped_picture[:, :, 0:3]  # 3 dimensions
-        if mode == 'rgb_array':
-            return reshaped_picture_02
-        elif mode == 'human':
-            # print(self.last_image2.shape)
-            try:
-                import pygame
-            except ImportError as e:
-                raise logging.error.DependencyNotInstalled(
-                    "{}. (HINT: install pygame using `pip install pygame`".format(e))
-
-            if close:
-                pygame.quit()
-            else:
-                if self.screen is None:
-                    pygame.init()
-                    pygame_width = self.video_width * 2
-                    self.screen = pygame.display.set_mode((pygame_width, self.video_height))
-                img2 = pygame.surfarray.make_surface(reshaped_picture_02.swapaxes(0, 1))
-                # img2 = pygame.surfarray.make_surface(self.last_image2.swapaxes(0, 1))
-                self.screen.blit(img2,
-                                 (self.video_width, 0))  # second window is rendered beside first window, same thread
-                pygame.display.update()
-        else:
-            raise logging.error.UnsupportedMode("Unsupported render mode: " + mode)
-
-    def render_video_frame_picture(self, world_state, mode='human', close=False):
-        """
-        render first agent
-        update pygame window for every taken step
-        """
-        frame = world_state.video_frames[0]
-        reshaped_pic = np.array(frame, dtype=float)
-        reshaped_picture_01 = reshaped_pic[:, :, 0:3]  # 3 dimensions
-
-        if mode == 'human':
-            try:
-                import pygame
-            except ImportError as e:
-                raise logging.error.DependencyNotInstalled(
-                    "{}. (HINT: install pygame using `pip install pygame`".format(e))
-
-            if close:
-                pygame.quit()
-            else:
-                if self.screen is None:
-                    pygame.init()
-                    pygame_width = self.video_width * 2
-                    self.screen = pygame.display.set_mode((pygame_width, self.video_height))
-                img1 = pygame.surfarray.make_surface(reshaped_picture_01.swapaxes(0, 1))
-                # img1 = pygame.surfarray.make_surface(self.last_image1.swapaxes(0, 1))
-                self.screen.blit(img1, (0, 0))
-                pygame.display.update()
-        else:
-            raise logging.error.UnsupportedMode("Unsupported render mode: " + mode)
 
     def _close(self):
         if hasattr(self, 'mc_process') and self.mc_process:
@@ -728,12 +569,43 @@ class ThesisEnvExperiment(gym.Env):
         else:
             return None
 
-    def save_results(self, t, overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step):
+    def save_new_round(self, t):
         """
-        save the results in results.txt
+        saves the round number in results.txt
         """
         datei = open('results.txt', 'a')
         datei.write("-------------- ROUND %i --------------\n" % (t))
+        datei.close()
+
+    def append_save_file_with_flag(self, time_step, name):
+        """
+        saves the flagholder in results.txt
+        """
+        datei = open('results.txt', 'a')
+        datei.write("%s captured the flag after %i seconds.\n" % (name, time_step))
+        datei.close()
+
+    def append_save_file_with_fail(self):
+        """
+        saves the failes in results.txt
+        """
+        datei = open('results.txt', 'a')
+        datei.write("X the mission failed X.\n")
+        datei.close()
+
+    def append_save_file_with_finish(self, time_step, name):
+        """
+        saves the winner in results.txt
+        """
+        datei = open('results.txt', 'a')
+        datei.write("%s won the game after %i seconds.\n" % (name, time_step))
+        datei.close()
+
+    def save_results(self,overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step):
+        """
+        saves the results in results.txt
+        """
+        datei = open('results.txt', 'a')
         datei.write("Reward Tom: %i, Reward Jerry: %i , Time: %f \n\n" % (
         overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step))
         datei.close()
@@ -743,175 +615,169 @@ class ThesisEnvExperiment(gym.Env):
         get (x,y,z) Positioncoordinates of agent
         RETURN: x,y,z
         """
-        x = 0
-        y = 0
-        z = 0
+        x = y = z = t = 0
+        while world_state:
+            if len(world_state.observations) >= 1:
+                msg = world_state.observations[-1].text
+                ob = json.loads(msg)
 
-        if len(world_state.observations) >= 1:
-            msg = world_state.observations[-1].text
-            ob = json.loads(msg)
-
-            if "XPos" in ob and "ZPos" in ob and "YPos" in ob:
-                x = ob[u'XPos']
-                y = ob[u'YPos']
-                z = ob[u'ZPos']
-        return x, y, z
-
-    def remove_Toms_lapis(self):
-        self.mission_spec.drawBlock(12, 46, 3, "air")
-        print("removed Toms lapis")
-
-    def remove_Jerrys_lapis(self):
-        self.mission_spec.drawBlock(3, 46, 11, "air")
-        print("removed Jerrys lapis")
-
-    def draw_flag_new(self):
-        self.mission_spec.drawBlock(1, 47, 13, "log")
-        self.mission_spec.drawBlock(14, 47, 1, "coal")
+                if "XPos" in ob and "ZPos" in ob and "YPos" in ob:
+                    x = ob[u'XPos']
+                    y = ob[u'YPos']
+                    z = ob[u'ZPos']
+                return x, y, z
+            else:
+                if t==10:
+                    self.append_save_file_with_fail()
+                    self.mission_end = True
+                    return x, y, z
+                else:
+                    time.sleep(1)
+                    print(".")
+                    t+=1
 
     def distance(self):
         """
         check if agents are to near to eachother
         move apart if so
         """
-        world_state1 = self.agent_host1.peekWorldState()
-        world_state2 = self.agent_host2.peekWorldState()
 
-        x1, y1, z1 = self.get_position_in_arena(world_state1)
-        x2, y2, z2 = self.get_position_in_arena(world_state2)
+        x1 = y1 = z1 = x2 = y2 = z2 = 0
+
+        """ checks, if world_state is read corrctly, if not, trys again"""
+        while (x1 == y1 == z1 == 0) or (x2 == y2 == z2 == 0):
+            world_state1 = self.agent_host1.peekWorldState()
+            world_state2 = self.agent_host2.peekWorldState()
+
+            x1, y1, z1 = self.get_position_in_arena(world_state1)
+            x2, y2, z2 = self.get_position_in_arena(world_state2)
+            print("...")
 
         print("Tom   x1, y1, z1: %i %i %i " % (x1, y1, z1))
         print("Jerry x2, y2, z2: %i %i %i " % (x2, y2, z2))
 
-        if (x2 == x1 + 1 and z2 == z1 + 1) or (x2 == x1 and z2 == z1 + 1) or (x2 == x1 - 1 and z2 == z1 + 1) or \
-                (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or (x1 == x2 - 1 and z1 == z2 - 1):
+        if (x2 == x1+2 and z1 == z1+2) or (x2 == x1+1 and z2 == z1+2) or (x2 == x1 and z2 == z1+2) or \
+                (x2 == x1-1 and z2 == z1+2) or (x2 == x1-2 and z2 == z1+2) or (x2 == x1 + 1 and z2 == z1 + 1) or \
+                (x2 == x1 and z2 == z1 + 1) or (x2 == x1 - 1 and z2 == z1 + 1) or (x1 == x2+2 and z1 == z2-2) or \
+                (x1 == x2+1 and z1 == z2-2) or (x1 == x2 and z1 == z2-2) or (x1 == x2-1 and z1 == z2-2) or \
+                (x1 == x2-2 and z1 == z2-2) or (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or \
+                (x1 == x2 - 1 and z1 == z2 - 1):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movenorth 1")
             self.agent_host2.sendCommand("movesouth 1")
 
-        if (x2 == x1 + 1 and z2 == z1) or (x1 == x2 - 1 and z1 == z2):
+        if (x2 == x1+2 and z2 == z1+1) or (x2 == x1+2 and z2 == z1) or (x2 == x1+2 and z2 == z1-1) or \
+                (x2 == x1+1 and z2 == z1) or (x1 == x2-2 and z1 == z2+1) or (x1 == x2-2 and z1 == z2) or \
+                (x1 == x2-2 and z1 == z2-1) or (x1 == x2-1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movewest 1")
             self.agent_host2.sendCommand("moveeast 1")
 
-        if (x2 == x1 - 1 and z2 == z1) or (x1 == x2 + 1 and z1 == z2):
+        if (x2 == x1-2 and z2 == z1+1) or (x2 == x1-2 and z2 == z1) or (x2 == x1-2 and z2 == z1-1) or \
+                (x2 == x1-1 and z2 == z1) or (x1 == x2+2 and z1 == z2+1) or (x1 == x2+2 and z1 == z2) or \
+                (x1 == x2+2 and z1 == z2-1) or (x1 == x2+1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("moveeast 1")
             self.agent_host2.sendCommand("movewest 1")
 
-        if (x2 == x1 + 1 and z2 == z1 - 1) or (x2 == x1 and z2 == z1 - 1) or (x2 == x1 - 1 and z2 == z1 - 1) or \
-                (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or (x1 == x2 - 1 and z1 == z2 + 1):
+        if (x2 == x1+2 and z1 == z1-2) or (x2 == x1+1 and z2 == z1-2) or (x2 == x1 and z2 == z1-2) or \
+                (x2 == x1-1 and z2 == z1-2) or (x2 == x1-2 and z2 == z1-2) or (x2 == x1 + 1 and z2 == z1 - 1) or \
+                (x2 == x1 and z2 == z1 - 1) or (x2 == x1 - 1 and z2 == z1 - 1) or (x1 == x2+2 and z1 == z2+2) or \
+                (x1 == x2+1 and z1 == z2+2) or (x1 == x2 and z1 == z2+2) or (x1 == x2-1 and z1 == z2+2) or \
+                (x1 == x2-2 and z1 == z2+2) or (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or \
+                (x1 == x2 - 1 and z1 == z2 + 1):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movesouth 1")
-            self.agent_host2.sendCommand("movenorth 1")
+            self.agent_host2.sendCommand("movennorth 1")
 
-            # self.agent_host1.sendCommand("Go away!")
-            # self.agent_host2.sendCommand("Go away!")
-
-    def check_inventory_old_lapis(self):
-        """
-        checks, if the agent got the flag in his inventory
-        if so, the destination lapis is removed, so he can finish his mission and bring the flag in
-        """
-        world_state1 = self.agent_host1.peekWorldState()
-        world_state2 = self.agent_host2.peekWorldState()
-
-        last_inventory_tom = 0
-        inventory_string_tom = ""
-        last_inventory_jerry = 0
-        inventory_string_jerry = ""
-        if len(world_state1.observations) > 1 and (world_state2.observations) > 1:
-            msg1 = world_state1.observations[-1].text
-            msg2 = world_state2.observations[-1].text
-            obs1 = json.loads(msg1)
-            obs2 = json.loads(msg2)
-
-            if u'inventory' in obs1 and last_inventory_tom != obs1[u'inventory']:
-                # if self.already_removed_marker_tom == 1:
-                # do nothing more
-                #    logger.log("Lapis_block is already removed.")
-                if inventory_string_tom.find('log') != -1:  # and self.already_removed_marker_tom == 0:
-                    self.remove_Toms_lapis()
-                    # self.already_removed_marker_tom = 1
-                else:
-                    last_inventory_tom = obs1[u'inventory']
-                    inventory_string_tom = json.dumps(last_inventory_tom[0])
-                    print("Toms last inventory: ", inventory_string_tom)
-
-            if u'inventory' in obs2 and last_inventory_jerry != obs2[u'inventory']:
-
-                # if self.already_removed_marker_jerry == 1:
-                # do nothing more
-                # logger.log("Lapis_block is already removed.")
-                if inventory_string_jerry.find('coal') != -1:  # and self.already_removed_marker_jerry == 0:
-                    self.remove_Jerrys_lapis()
-                    # self.already_removed_marker_jerry = 1
-                else:
-                    last_inventory_jerry = obs2[u'inventory']
-                    inventory_string_jerry = json.dumps(last_inventory_jerry[0])
-                    print("Jerrys last inventory: ", inventory_string_jerry)
-
-    def check_inventory(self):
+    def check_inventory(self, time_step):
         """
         checks, if the agent got the flag in his inventory
         """
         world_state1 = self.agent_host1.peekWorldState()
         world_state2 = self.agent_host2.peekWorldState()
+        x1 = y1 = z1 = x2 = y2 = z2 = 0
 
-        last_inventory_tom = 0
-        inventory_string_tom = ""
-        last_inventory_jerry = 0
-        inventory_string_jerry = ""
-        if len(world_state1.observations) > 1 and (world_state2.observations) > 1:
+        if len(json.dumps(world_state1.observations[-1].text)) >= 1 and len(json.dumps(world_state2.observations[-1].text)) >= 1:
+            print("--recent Observations Tom: %s \n--recent observations Jerry %s \n" % (
+            json.dumps(world_state1.observations[-1].text), json.dumps(world_state2.observations[-1].text)))
+
             msg1 = world_state1.observations[-1].text
             msg2 = world_state2.observations[-1].text
             obs1 = json.loads(msg1)
             obs2 = json.loads(msg2)
-            x1, y1, z1 = self.get_position_in_arena(world_state1)
-            x2, y2, z2 = self.get_position_in_arena(world_state1)
 
-            if u'inventory' in obs1 and last_inventory_tom != obs1[u'inventory']:
-                # (12,46,0),(12,46,1),(12,46,2),(12,46,3)
-                # (13,46,0),(13,46,1),(13,46,2),(13,46,3)
-                # (14,46,0),(14,46,1),(14,46,2),(14,46,3)
-                if inventory_string_tom.find('log') != -1 and (
-                        (x1 == 12 and y1 == 46 and z1 == 0) or (x1 == 12 and y1 == 46 and z1 == 1) or
-                        (x1 == 12 and y1 == 46 and z1 == 2) or (x1 == 12 and y1 == 46 and z1 == 3) or
-                        (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
-                        (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3) or
-                        (x1 == 13 and y1 == 46 and z1 == 0) or (x1 == 13 and y1 == 46 and z1 == 1) or
-                        (x1 == 13 and y1 == 46 and z1 == 2) or (x1 == 13 and y1 == 46 and z1 == 3)):
+            """ checks, if world_state is read corrctly, if not, trys again"""
+            while (x1 == y1 == z1 == 0) or (x2 == y2 == z2 == 0):
+                world_state1 = self.agent_host1.peekWorldState()
+                world_state2 = self.agent_host2.peekWorldState()
+
+                x1, y1, z1 = self.get_position_in_arena(world_state1)
+                x2, y2, z2 = self.get_position_in_arena(world_state2)
+                print("..")
+
+            if u'inventory' in obs1:
+
+                if self.flag_captured_tom and 11 <= x1 <= 14 and y1==64 and 0 <= z1 <= 5:
                     # runter schauen, Block plazieren, draufspringen
+                    self.agent_host1.sendCommand("chat I won the game!")
+                    self.append_save_file_with_finish(time_step, "Tom")
                     self.agent_host1.sendCommand("look 1")
-                    time.sleep(0.1)
+                    time.sleep(1)
                     self.agent_host1.sendCommand("use 1")
-                    time.sleep(0.5)
+                    time.sleep(1)
                     self.agent_host1.sendCommand("jumpmove 1")
-                    time.sleep(0.5)
+                    time.sleep(1)
+                    self.agent_host1.sendCommand("look -1")
                 else:
-                    last_inventory_tom = obs1[u'inventory']
-                    inventory_string_tom = json.dumps(last_inventory_tom[0])
-                    print("Toms last inventory: ", inventory_string_tom)
+                    if self.flag_captured_tom:
+                        self.agent_host1.sendCommand("jump 1")
+                        print("[INFO] Tom holds the flag.")
+                    else:
+                        last_inventory_tom = obs1[u'inventory']
+                        inventory_string_tom = json.dumps(last_inventory_tom)
+                        print("Toms last inventory: ", inventory_string_tom)
+                        if (inventory_string_tom.find('lapis') != -1):
+                            """ tauscht lapis mit log, sodass lapis zurück gelegt werden kann"""
+                            if (json.dumps(last_inventory_tom[1]).find('lapis') != -1):
+                                self.agent_host1.sendCommand("swapInventoryItems 0 1")
+                            self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
+                            # time.sleep(0.5)
+                            self.agent_host1.sendCommand("use")
+                        if (inventory_string_tom.find('log') != -1):
+                            self.flag_captured_tom = True
+                            self.append_save_file_with_flag(time_step, "Tom")
+                            print(
+                                "----------------------------------------------------------------Tom captured the flag after %i seconds!" % (time_step))
 
-            if u'inventory' in obs2 and last_inventory_jerry != obs2[u'inventory']:
-                # (0,46,11),(0,46,12),(0,46,13),(0,46,14)
-                # (1,46,11),(1,46,12),(1,46,13),(1,46,14)
-                # (2,46,11),(2,46,12),(2,46,13),(2,46,14)
-                if inventory_string_jerry.find('coal') != -1 and (
-                        (x2 == 0 and y2 == 46 and z2 == 11) or (x2 == 0 and y2 == 46 and z2 == 12) or
-                        (x2 == 0 and y2 == 46 and z2 == 13) or (x2 == 0 and y2 == 46 and z2 == 14) or
-                        (x2 == 1 and y2 == 46 and z2 == 11) or (x2 == 1 and y2 == 46 and z2 == 12) or
-                        (x2 == 1 and y2 == 46 and z2 == 13) or (x2 == 1 and y2 == 46 and z2 == 14) or
-                        (x2 == 2 and y2 == 46 and z2 == 11) or (x2 == 2 and y2 == 46 and z2 == 12) or
-                        (x2 == 2 and y2 == 46 and z2 == 13) or (x2 == 2 and y2 == 46 and z2 == 14)):
+        if u'inventory' in obs2:
+
+                if self.flag_captured_jerry and 0 <= x2 <= 4 and y2==64 and 11 <= z2 <= 14:
                     # runter schauen, Block plazieren, draufspringen
+                    self.agent_host2.sendCommand("chat I won the game!")
+                    self.append_save_file_with_finish(time_step, "Jerry")
                     self.agent_host2.sendCommand("look 1")
-                    time.sleep(0.1)
+                    time.sleep(1)
                     self.agent_host2.sendCommand("use 1")
-                    time.sleep(0.5)
+                    time.sleep(1)
                     self.agent_host2.sendCommand("jumpmove 1")
-                    time.sleep(0.5)
+                    self.agent_host2.sendCommand("look -1")
                 else:
-                    last_inventory_jerry = obs2[u'inventory']
-                    inventory_string_jerry = json.dumps(last_inventory_jerry[0])
-                    print("Jerrys last inventory: ", inventory_string_jerry)
+                    if self.flag_captured_jerry:
+                        print("[INFO] Jerry holds the flag.")
+                        self.agent_host2.sendCommand("jump 1")
+                    else:
+                        last_inventory_jerry = obs2[u'inventory']
+                        inventory_string_jerry = json.dumps(last_inventory_jerry)
+                        print("Jerrys last inventory: ", inventory_string_jerry)
+                        if (inventory_string_jerry.find('log') != -1):
+                            """ tauscht lapis mit log, sodass log zurück gelegt werden kann"""
+                            if (json.dumps(last_inventory_jerry[1]).find('log') != -1):
+                                self.agent_host2.sendCommand("swapInventoryItems 0 1")
+                            self.agent_host2.sendCommand("chat Wrong flag, I'll put it back!")
+                            #time.sleep(0.5)
+                            self.agent_host2.sendCommand("use")
+                        if (inventory_string_jerry.find('lapis') != -1):
+                            self.flag_captured_jerry = True
+                            self.append_save_file_with_flag(time_step, "Jerry")
+                            print("----------------------------------------------------------------Jerry captured the flag after %i seconds!" % (time_step))

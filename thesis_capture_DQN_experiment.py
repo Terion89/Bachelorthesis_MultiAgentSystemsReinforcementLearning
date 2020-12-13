@@ -206,11 +206,14 @@ if __name__ == '__main__':
     max_episode_len = None
     time_stamp_start = time.time()
     print("actual time: ", time_stamp_start)
-    """ initial observation """
 
-    obs1, obs2 = env.reset_world()
+    experiment_ID = "a"
+
+    """ initial observation """
+    obs1, obs2 = env.reset_world(experiment_ID)
 
     while t < steps:
+        env.save_new_round(t)
         try:
             while not done1 and not done2:
 
@@ -239,18 +242,21 @@ if __name__ == '__main__':
                     hook(env, tom, t)
                     hook(env, jerry, t)
 
-                env.check_inventory()
+                time_step = time_stamp_actual - time_stamp_start
+
+                env.check_inventory(time_step)
 
                 """
                 end mission when time is over and start over again
                 """
-                time_step = time_stamp_actual - time_stamp_start
                 print("mission time up: %i sec" % (time_step))
+                #print("done1: ", done1)
+                #print("done2: ", done2)
+                if (done1 and done2) or (time_step > 1920) or (env.mission_end == True):  # 960 = 16 min | 1920 = 32 min
+                    env.agent_host1.sendCommand("quit")
+                    env.agent_host2.sendCommand("quit")
+                    env.agent_host3.sendCommand("quit")
 
-                if (done1 and done2) or (time_step > 690):  # 960 = 16 min
-                    #env.agent_host1.sendCommand("quit")
-                    #env.agent_host2.sendCommand("quit")
-                    #env.agent_host3.sendCommand("quit")
                     tom.stop_episode_and_train(obs1, r1, done=done)
                     jerry.stop_episode_and_train(obs2, r2, done=done)
                     print("outdir: %s step: %s " % (outdir, t))
@@ -266,14 +272,11 @@ if __name__ == '__main__':
                     print("Final Reward Tom:   ", overall_reward_agent_Tom)
                     print("Final Reward Jerry: ", overall_reward_agent_Jerry)
 
-                    env.save_results(t, overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
-
-                    time_stamp_start = time.time()
-                    print("actual time: ", time_stamp_start)
+                    env.save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
 
                     t += 1
-                    # reset world
 
+                    # reset world
                     r1 = 0
                     r2 = 0
                     done1 = False
@@ -284,7 +287,8 @@ if __name__ == '__main__':
 
                     time_stamp_start = time.time()
                     print("actual time: ", time_stamp_start)
-                    obs1, obs2 = env.reset_world()
+                    #experiment_ID += "a"
+                    obs1, obs2 = env.reset_world(experiment_ID)
                     """if evaluator1 and evaluator2 is not None:
                         evaluator1.evaluate_if_necessary(
                             t=t, episodes=episode_idx + 1)
@@ -301,22 +305,6 @@ if __name__ == '__main__':
             save_agent(tom, t, outdir, logger, suffix='_except01')
             save_agent(jerry, t, outdir, logger, suffix='_except02')
             raise
-
-        # Start a new episode
-
-
-
-
-    """if checkpoint_freq and t % checkpoint_freq == 0:
-        save_agent(tom, t, outdir, logger, suffix='_checkpoint_01')
-        save_agent(jerry, t, outdir, logger, suffix='_checkpoint_01')"""
-
-    """
-    choose random actions for testing the functions
-    """
-    #action1 = env.action_names[0][random.randint(0, len(env.action_names[0])-1)]
-    #time.sleep(0.5)
-    #action2 = env.action_names[0][random.randint(0, len(env.action_names[0])-1)]
 
 
 

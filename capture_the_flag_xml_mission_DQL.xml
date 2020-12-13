@@ -5,7 +5,6 @@
     <Summary>Testarena: Capture the flag </Summary>
   </About>
   <ModSettings>
-        <MsPerTick>100</MsPerTick>
   </ModSettings>
   <ServerSection>
     <ServerInitialConditions>
@@ -33,7 +32,7 @@
                     <!-- base 01: Tom -->
                     <DrawCuboid x1="12"  y1="45" z1="0"  x2="15" y2="45" z2="3" type="iron_ore" />
                     <DrawCuboid x1="15" y1="46" z1="0" x2="15" y2="60" z2="0" type="emerald_block" />
-                    <DrawCuboid x1="14"  y1="46" z1="0"  x2="15" y2="47" z2="1" type="coal_ore" /><!-- flag -->
+                    <DrawCuboid x1="14"  y1="46" z1="0"  x2="15" y2="47" z2="1" type="lapis_block" /><!-- flag -->
                     <!-- base 02: Jerry -->
                     <DrawCuboid x1="0"  y1="45" z1="11"  x2="3" y2="45" z2="15" type="gold_ore" />
                     <DrawCuboid x1="0" y1="46" z1="14" x2="0" y2="60" z2="14" type="redstone_block" />
@@ -55,9 +54,11 @@
     <AgentStart>
       <Placement x="11.5"  y="46" z="2.5" pitch="0" yaw="0"/>
       <Inventory>
+          <InventoryItem type="diamond_pickaxe" slot="4"/>
       </Inventory>
     </AgentStart>
     <AgentHandlers>
+      <ChatCommands/>
       <ObservationFromFullInventory flat="false"/>
       <DiscreteMovementCommands/>
       <ObservationFromDiscreteCell/>
@@ -74,12 +75,12 @@
         <Block reward="1.0" type="cobblestone" behaviour="constant"/>
           <Block reward="-200.0" type="bedrock" behaviour="constant"/>
         <Block reward="100000.0" type="log" behaviour="onceOnly"/>
-        <Block reward="-100000.0" type="coal_ore" behaviour="onceOnly"/>
+        <Block reward="-100000.0" type="lapis_block" behaviour="onceOnly"/>
       </RewardForTouchingBlockType>
       <RewardForSendingCommand reward="-5" />
         <RewardForCollectingItem>
           <Item reward="-3000" type="bedrock"/>
-          <Item reward="-3000" type="coal_ore"/>
+          <Item reward="-3000" type="lapis_block"/>
           <Item reward="10000" type="log"/>
       </RewardForCollectingItem>
         <AgentQuitFromReachingPosition>
@@ -105,6 +106,7 @@
             <Marker tolerance="0.5" x="15" y="47" z="3"/>
             <Marker tolerance="0.5" x="15" y="47" z="4"/>
       </AgentQuitFromReachingPosition>
+        <MissionQuitCommands quitDescription="quit"/>
     </AgentHandlers>
   </AgentSection>
 
@@ -113,9 +115,11 @@
     <AgentStart>
       <Placement x="2.5"  y="46" z="10.5" pitch="0" yaw="180"/>
       <Inventory>
+          <InventoryItem type="diamond_pickaxe" slot="4"/>
       </Inventory>
     </AgentStart>
     <AgentHandlers>
+      <ChatCommands/>
       <ObservationFromFullInventory flat="false"/>
       <DiscreteMovementCommands/>
       <ObservationFromDiscreteCell/>
@@ -132,12 +136,12 @@
           <Block reward="-200.0" type="bedrock" behaviour="constant"/>
         <Block reward="1000.0" type="iron_ore" behaviour="onceOnly"/>
         <Block reward="-100000.0" type="log" behaviour="onceOnly"/>
-        <Block reward="100000.0" type="coal_ore" behaviour="onceOnly"/>
+        <Block reward="100000.0" type="lapis_block" behaviour="onceOnly"/>
       </RewardForTouchingBlockType>
       <RewardForCollectingItem>
         <Item reward="-3000" type="bedrock"/>
         <Item reward="-3000" type="log"/>
-        <Item reward="10000" type="coal_ore"/>
+        <Item reward="10000" type="lapis_block"/>
       </RewardForCollectingItem>
       <RewardForSendingCommand reward="-5" />
       <AgentQuitFromReachingPosition>
@@ -163,6 +167,7 @@
           <Marker tolerance="0.5" x="4" y="47" z="13"/>
           <Marker tolerance="0.5" x="4" y="47" z="14"/>
       </AgentQuitFromReachingPosition>
+      <MissionQuitCommands quitDescription="quit"/>
     </AgentHandlers>
   </AgentSection>
 
@@ -172,7 +177,7 @@
           <Placement x="7.5" y="60" z="-1.01" pitch="70"/>
         </AgentStart>
         <AgentHandlers>
-          <MissionQuitCommands/>
+          <MissionQuitCommands quitDescription="quit"/>
           <VideoProducer>
             <Width>640</Width>
             <Height>640</Height>

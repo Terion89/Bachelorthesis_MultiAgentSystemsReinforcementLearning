@@ -9,15 +9,9 @@ from gym import spaces
 import logging
 from malmo import MalmoPython
 import numpy as np
-import os
 import malmoutils
-
-import argparse
 import os
-import sys
-
 from chainer import optimizers
-
 import chainerrl
 from chainerrl.agents.dqn import DQN
 from chainerrl import experiments
@@ -43,24 +37,24 @@ Matr.Nr.: 1361271
 Environment Arena 'ThesisEnvExperiment' for capture-the-flag problem
 available functions:
     init()
-    _create_action_space()
+    create_action_space()
     load_mission_file(mission_file)
     load_mission_xml(mission_xml)
     clip_action_filter(a)
     dqn_q_values_and_neuronal_net(args, action_space, obs_size, obs_space)
-    remember(buf, state, action, reward, new_state, done)
-    step(action, agent_num)
-    safeStartMission(agent_host, mission, client_pool, recording, role, experimentId)
-    safeWaitForStart(agent_hosts)
-    reset()
-    render_first_agent(mode='human', close=False)
-    render_second_agent(mode='human', close=False)
-    _close()
-    _seed(seed=None)
-    _take_action(actions, agent_num)
-    _get_world_state()
-    _get_video_frame(world_state, agent_num)
-    _get_observation(world_state)
+    step_generating(action, agent_num)
+    reset_world()
+    do_action(actions, agent_num)
+    get_video_frame(world_state, agent_num)
+    get_observation(world_state)
+    save_new_round(t)
+    append_save_file_with_flag(time_step, name)
+    append_save_file_with_fail()
+    append_save_file_with_agents_fail()
+    append_save_file_with_finish(time_step, name)
+    save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
+    distance()
+    check_inventory(time_step)
 """
 
 
@@ -79,6 +73,7 @@ class ThesisEnvExperiment(gym.Env):
     agent_host3 = MalmoPython.AgentHost()
     malmoutils.parse_command_line(agent_host3)
 
+    """global variables to remember, if somebody already catched the flag"""
     flag_captured_tom = False
     flag_captured_jerry = False
 
@@ -94,10 +89,7 @@ class ThesisEnvExperiment(gym.Env):
 
         self.client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002)]
         self.mc_process = None
-        self.screen = None
         self.mission_end = False
-        # self.already_removed_marker_tom = 0
-        # self.already_removed_marker_jerry = 0
 
     def init(self, client_pool=None, start_minecraft=None,
              continuous_discrete=True, add_noop_command=None,
@@ -156,8 +148,10 @@ class ThesisEnvExperiment(gym.Env):
             logger.info("Started Minecraft on port %d, overriding client_pool.", port)
             client_pool = [('127.0.0.1', port)]
 
+        """ 
+        make client_pool usable for Malmo: change format of the client_pool to struct 
+        """
         if client_pool:
-            # change format of the client_pool to struct
             if not isinstance(client_pool, list):
                 raise ValueError("client_pool must be list of tuples of (IP-address, port)")
             self.client_pool = MalmoPython.ClientPool()
@@ -177,9 +171,11 @@ class ThesisEnvExperiment(gym.Env):
         """
         self.last_image1 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.float32)
         self.last_image2 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.float32)
-        self._create_action_space()
+        self.create_action_space()
 
-        # mission recording
+        """ 
+        mission recording 
+        """
         self.mission_record_spec = MalmoPython.MissionRecordSpec()  # record nothing
         if recordDestination:
             self.mission_record_spec.setDestination(recordDestination)
@@ -190,6 +186,9 @@ class ThesisEnvExperiment(gym.Env):
         if recordMP4:
             self.mission_record_spec.recordMP4(*recordMP4)
 
+        """ 
+        game mode
+        """
         if gameMode:
             if gameMode == "spectator":
                 self.mission_spec.setModeToSpectator()
@@ -200,10 +199,15 @@ class ThesisEnvExperiment(gym.Env):
             else:
                 assert False, "Unknown game mode: " + gameMode
 
-    def _create_action_space(self):
+    def create_action_space(self):
         """
         create action_space from action_names to dynamically generate the needed movement
-        format: Discrete
+        format:             Discrete
+        possible actions:   "move", "jumpmove", "strafe", "jumpstrafe", "turn", "jumpnorth", "jumpsouth", "jumpwest",
+                            "jumpeast","look", "use", "jumpuse", "sleep", "movenorth", "movesouth", "moveeast",
+                            "movewest", "jump", "attack"
+        unused_actions:     not wanted actions
+        discrete_actions:   wanted actions
         """
         # collect different actions based on allowed commands
         unused_actions = []
@@ -218,19 +222,15 @@ class ThesisEnvExperiment(gym.Env):
                     discrete_actions.append(command + " -1")
                 else:
                     unused_actions.append(
-                        command)  # "move", "jumpmove", "strafe", "jumpstrafe", "turn", "jumpnorth", "jumpsouth", "jumpwest", "jumpeast","look", "use", "jumpuse", "sleep", "movenorth", "movesouth", "moveeast", "movewest", "jump", "attack"
-                    # raise ValueError("Unknown continuous action: " + command)
+                        command)
 
-        # turn action lists into action spaces
+        """ turn action lists into action spaces """
         self.action_names = []
         self.action_spaces = []
         if len(discrete_actions) > 0:
             self.action_spaces.append(spaces.Discrete(len(discrete_actions)))
             self.action_names.append(discrete_actions)
-            # print("action_names:  ", self.action_names)
-            # print("action_spaces: ", self.action_spaces)
 
-        # if there is only one action space, don't wrap it in Tuple
         if len(self.action_spaces) == 1:
             self.action_space = self.action_spaces[0]
         else:
@@ -308,10 +308,6 @@ class ThesisEnvExperiment(gym.Env):
         else:
             rbuf = replay_buffer.ReplayBuffer(rbuf_capacity)
 
-        # print("--q_func: ", q_func)
-        # print("--opt: ", opt)
-        # print("--rbuf: ", rbuf)
-        # print("--explorer: ", explorer)
         return q_func, opt, rbuf, explorer
 
     def step_generating(self, action, agent_num):
@@ -321,49 +317,38 @@ class ThesisEnvExperiment(gym.Env):
         reward of actual state is calculated and summed up with the overall reward
         RETURN: image, reward, done, info
         """
+        reward1 = 0
+        reward2 = 0
 
         world_state1 = self.agent_host1.peekWorldState()
         world_state2 = self.agent_host2.peekWorldState()
         if agent_num == 1:
             if world_state1.is_mission_running:
-                # take action
-                self._take_action(action, agent_num)
-                # wait for the new state
-            world_state = self.agent_host1.getWorldState()
+                """ take action """
+                self.do_action(action, agent_num)
+                """ wait for the new state """
+            world_state1 = self.agent_host1.getWorldState()
         else:
             if world_state2.is_mission_running:
-                # take action
-                self._take_action(action, agent_num)
-                # wait for the new state
-            world_state = self.agent_host2.getWorldState()
+                """ take action """
+                self.do_action(action, agent_num)
+                """ wait for the new state """
+            world_state2 = self.agent_host2.getWorldState()
 
-        reward1 = 0
-        reward2 = 0
-        # calculate reward of current state
+        """ calculate reward of current state """
         if agent_num == 1:
-
-            # self.agent_host1.sendCommand(action)
-            #time.sleep(0.1)
             for r in world_state1.rewards:
                 reward1 += r.getValue()
         else:
-            # self.agent_host2.sendCommand(action)
-            #time.sleep(0.1)
             for r in world_state2.rewards:
                 reward2 += r.getValue()
 
-        # take the last frame from world state
+        """ take the last frame from world state | 'done'-flag indicated, if mission is still running """
         if agent_num == 1:
-            image1 = self._get_video_frame(world_state1, 1)
-        else:
-            image2 = self._get_video_frame(world_state2, 2)
-
-        """
-        'done'-flag indicated, if mission is still running 
-        """
-        if agent_num == 1:
+            image1 = self.get_video_frame(world_state1, 1)
             done1 = not world_state1.is_mission_running
         else:
+            image2 = self.get_video_frame(world_state2, 2)
             done2 = not world_state1.is_mission_running
 
         """
@@ -377,7 +362,7 @@ class ThesisEnvExperiment(gym.Env):
             info1['number_of_rewards_since_last_state'] = world_state1.number_of_rewards_since_last_state
             info1['number_of_observations_since_last_state'] = world_state1.number_of_observations_since_last_state
             info1['mission_control_messages'] = [msg.text for msg in world_state1.mission_control_messages]
-            info1['observation'] = self._get_observation(world_state1)
+            info1['observation'] = self.get_observation(world_state1)
 
         else:
             info2 = {}
@@ -387,7 +372,7 @@ class ThesisEnvExperiment(gym.Env):
             info2['number_of_rewards_since_last_state'] = world_state2.number_of_rewards_since_last_state
             info2['number_of_observations_since_last_state'] = world_state2.number_of_observations_since_last_state
             info2['mission_control_messages'] = [msg.text for msg in world_state2.mission_control_messages]
-            info2['observation'] = self._get_observation(world_state2)
+            info2['observation'] = self.get_observation(world_state2)
 
         if agent_num == 1:
             return image1, reward1, done1, info1
@@ -401,14 +386,14 @@ class ThesisEnvExperiment(gym.Env):
         print("force world reset........")
         self.flag_captured_tom = False
         self.flag_captured_jerry = False
-        # this seemed to increase probability of success in first try
+
         time.sleep(0.1)
-        # Attempt to start a mission
+
         print(self.client_pool)
 
         for retry in range(self.max_retries + 1):
-
             try:
+                """ start missions for every client """
                 print("starting missions........")
                 time.sleep(5)
                 print("3")
@@ -422,19 +407,6 @@ class ThesisEnvExperiment(gym.Env):
                 print("1")
                 self.agent_host3.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               2, experiment_ID)
-
-                #self.safeStartMission(self.agent_host1, )
-
-                #time.sleep(4)
-                #self.safeStartMission(self.agent_host2, self.mission_spec, self.client_pool, self.mission_record_spec,
-                #                      1, experiment_ID)
-
-                #time.sleep(4)
-                #self.safeStartMission(self.agent_host3, self.mission_spec, self.client_pool, self.mission_record_spec,
-                #                      2, experiment_ID)
-                #time.sleep(3)
-                #agent_hosts = [self.agent_host1, self.agent_host2, self.agent_host3]
-                #self.safeWaitForStart(agent_hosts)
                 print("0 \nmissions successfully started.....")
                 break
             except RuntimeError as e:
@@ -446,8 +418,7 @@ class ThesisEnvExperiment(gym.Env):
                     logger.info("Sleeping for %d seconds...", self.retry_sleep)
                     time.sleep(self.retry_sleep)
 
-        # Loop until mission starts:
-        logger.info("Waiting for the mission to start")
+        logger.info("Waiting for the mission to start.")
         world_state1 = self.agent_host1.getWorldState()
         world_state2 = self.agent_host2.getWorldState()
         while not world_state1.has_mission_begun and world_state2.has_mission_begun:
@@ -459,27 +430,17 @@ class ThesisEnvExperiment(gym.Env):
 
         logger.info("Mission running")
 
-        return self._get_video_frame(world_state1, 1), self._get_video_frame(world_state2, 2)
+        return self.get_video_frame(world_state1, 1), self.get_video_frame(world_state2, 2)
 
-
-    def _close(self):
-        if hasattr(self, 'mc_process') and self.mc_process:
-            minecraft_py.stop(self.mc_process)
-
-    def _seed(self, seed=None):
-        self.mission_spec.setWorldSeed(str(seed))
-        return [seed]
-
-    def _take_action(self, actions, agent_num):
+    def do_action(self, actions, agent_num):
         """
-        calculate next action from action_space
+        get next action from action_space
         execute action in environment for the agent
         """
-        # if there is only one action space, it wasn't wrapped in Tuple
         if len(self.action_spaces) == 1:
             actions = [actions]
         print(actions)
-        # send appropriate command for different actions
+
         for spc, cmds, acts in zip(self.action_spaces, self.action_names, actions):
             if isinstance(spc, spaces.Discrete):
                 logger.debug(cmds[acts])
@@ -506,21 +467,7 @@ class ThesisEnvExperiment(gym.Env):
             else:
                 logger.warn("Unknown action space for %s, ignoring." % cmds)
 
-    def _get_world_state(self):
-        """
-        see, if mission is running and calculate world_state
-        RETURN: world_state for called agent_host
-        """
-        # wait till we have got at least one observation or mission has ended
-        while True:
-            time.sleep(self.step_sleep)  # wait for 1ms to not consume entire CPU
-            world_state = self.agent_host.peekWorldState()
-            if world_state.number_of_observations_since_last_state > self.skip_steps or not world_state.is_mission_running:
-                break
-
-        return self.agent_host.getWorldState()
-
-    def _get_video_frame(self, world_state, agent_num):
+    def get_video_frame(self, world_state, agent_num):
         """
         process video frame for called agent
         RETURN: image for called agent
@@ -535,18 +482,15 @@ class ThesisEnvExperiment(gym.Env):
             for i in range(360000):
                 reshaped[i] = image[i]
 
-            # reshaped_picture_02 = reshaped_picture[:, :, 0:3]  # 3 dimensions
-            # print("reshaped: ", reshaped)
             image = np.frombuffer(frame.pixels, dtype=np.float32)  # 300x400 = 120000 Werte // np.float32
             image = reshaped.reshape((frame.height, frame.width, frame.channels))  # 300x400x3 = 360000
-            # logger.debug(image)
+
             if agent_num == 1:
                 self.last_image1 = image
             else:
                 self.last_image2 = image
         else:
-            # can happen only when mission ends before we get frame
-            # then just use the last frame, it doesn't matter much anyway
+            """ if m ission ends befor we got a frame, just take the last frame to reduce exceptions """
             if agent_num == 1:
                 image = self.last_image1
             else:
@@ -554,7 +498,7 @@ class ThesisEnvExperiment(gym.Env):
 
         return image
 
-    def _get_observation(self, world_state):
+    def get_observation(self, world_state):
         """
         check observations during mission run
         RETURN: number of missed observations - if there are any
@@ -593,6 +537,14 @@ class ThesisEnvExperiment(gym.Env):
         datei.write("X the mission failed X.\n")
         datei.close()
 
+    def append_save_file_with_agents_fail(self):
+        """
+        saves the failes in results.txt
+        """
+        datei = open('results.txt', 'a')
+        datei.write("X the mission failed: the agents ran into each other or got stranded in the field X.\n")
+        datei.close()
+
     def append_save_file_with_finish(self, time_step, name):
         """
         saves the winner in results.txt
@@ -615,26 +567,38 @@ class ThesisEnvExperiment(gym.Env):
         get (x,y,z) Positioncoordinates of agent
         RETURN: x,y,z
         """
-        x = y = z = t = 0
+        x = y = z = t = x_last = z_last = 0
         while world_state:
             if len(world_state.observations) >= 1:
                 msg = world_state.observations[-1].text
                 ob = json.loads(msg)
 
+                if t >=3:
+                    msg_last = world_state.observations[-2].text
+                    ob_last = json.loads(msg_last)
+                    if "XPos" in ob_last and "ZPos" in ob_last and "YPos" in ob_last:
+                        x_last = ob_last[u'XPos']
+                        z_last = ob_last[u'ZPos']
+
                 if "XPos" in ob and "ZPos" in ob and "YPos" in ob:
                     x = ob[u'XPos']
                     y = ob[u'YPos']
                     z = ob[u'ZPos']
+
+                    if (t >= 3) and ((x == x_last) and (z == z_last)):
+                        self.append_save_file_with_agents_fail()
+                        self.mission_end = True
+
                 return x, y, z
             else:
-                if t==10:
+                if t == 20:
                     self.append_save_file_with_fail()
                     self.mission_end = True
                     return x, y, z
                 else:
                     time.sleep(1)
                     print(".")
-                    t+=1
+                    t += 1
 
     def distance(self):
         """
@@ -653,39 +617,44 @@ class ThesisEnvExperiment(gym.Env):
             x2, y2, z2 = self.get_position_in_arena(world_state2)
             print("...")
 
-        print("Tom   x1, y1, z1: %i %i %i " % (x1, y1, z1))
-        print("Jerry x2, y2, z2: %i %i %i " % (x2, y2, z2))
+        # print("  \tTom \tJerry \nX: \t %i\t %i \nY: \t %i\t %i \nZ: \t %i\t %i" % (x1, x2, y1, y2, z1, z2))
 
-        if (x2 == x1+2 and z1 == z1+2) or (x2 == x1+1 and z2 == z1+2) or (x2 == x1 and z2 == z1+2) or \
-                (x2 == x1-1 and z2 == z1+2) or (x2 == x1-2 and z2 == z1+2) or (x2 == x1 + 1 and z2 == z1 + 1) or \
-                (x2 == x1 and z2 == z1 + 1) or (x2 == x1 - 1 and z2 == z1 + 1) or (x1 == x2+2 and z1 == z2-2) or \
-                (x1 == x2+1 and z1 == z2-2) or (x1 == x2 and z1 == z2-2) or (x1 == x2-1 and z1 == z2-2) or \
-                (x1 == x2-2 and z1 == z2-2) or (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or \
-                (x1 == x2 - 1 and z1 == z2 - 1):
+        """(x2 == x1+2 and z1 == z1+2) or (x2 == x1+1 and z2 == z1+2) or (x2 == x1 and z2 == z1+2) or \
+        (x2 == x1-1 and z2 == z1+2) or (x2 == x1-2 and z2 == z1+2) or (x1 == x2+2 and z1 == z2-2) or \
+        (x1 == x2+1 and z1 == z2-2) or (x1 == x2 and z1 == z2-2) or (x1 == x2-1 and z1 == z2-2) or \
+        (x1 == x2-2 and z1 == z2-2) or """
+
+        if (x2 == x1 + 1 and z2 == z1 + 1) or (x2 == x1 and z2 == z1 + 1) or (x2 == x1 - 1 and z2 == z1 + 1) or \
+                (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or (x1 == x2 - 1 and z1 == z2 - 1):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movenorth 1")
             self.agent_host2.sendCommand("movesouth 1")
 
-        if (x2 == x1+2 and z2 == z1+1) or (x2 == x1+2 and z2 == z1) or (x2 == x1+2 and z2 == z1-1) or \
-                (x2 == x1+1 and z2 == z1) or (x1 == x2-2 and z1 == z2+1) or (x1 == x2-2 and z1 == z2) or \
-                (x1 == x2-2 and z1 == z2-1) or (x1 == x2-1 and z1 == z2):
+        """(x2 == x1 + 2 and z2 == z1 + 1) or (x2 == x1 + 2 and z2 == z1) or (x2 == x1 + 2 and z2 == z1 - 1) or
+        (x1 == x2-2 and z1 == z2+1) or (x1 == x2-2 and z1 == z2) or 
+        (x1 == x2-2 and z1 == z2-1) or """
+
+        if (x2 == x1+1 and z2 == z1) or (x1 == x2-1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movewest 1")
             self.agent_host2.sendCommand("moveeast 1")
 
-        if (x2 == x1-2 and z2 == z1+1) or (x2 == x1-2 and z2 == z1) or (x2 == x1-2 and z2 == z1-1) or \
-                (x2 == x1-1 and z2 == z1) or (x1 == x2+2 and z1 == z2+1) or (x1 == x2+2 and z1 == z2) or \
-                (x1 == x2+2 and z1 == z2-1) or (x1 == x2+1 and z1 == z2):
+        """(x2 == x1 - 2 and z2 == z1 + 1) or (x2 == x1 - 2 and z2 == z1) or (x2 == x1 - 2 and z2 == z1 - 1) or
+        (x1 == x2+2 and z1 == z2+1) or (x1 == x2+2 and z1 == z2) or \
+        (x1 == x2+2 and z1 == z2-1) or """
+
+        if (x2 == x1-1 and z2 == z1) or (x1 == x2+1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("moveeast 1")
             self.agent_host2.sendCommand("movewest 1")
 
-        if (x2 == x1+2 and z1 == z1-2) or (x2 == x1+1 and z2 == z1-2) or (x2 == x1 and z2 == z1-2) or \
-                (x2 == x1-1 and z2 == z1-2) or (x2 == x1-2 and z2 == z1-2) or (x2 == x1 + 1 and z2 == z1 - 1) or \
-                (x2 == x1 and z2 == z1 - 1) or (x2 == x1 - 1 and z2 == z1 - 1) or (x1 == x2+2 and z1 == z2+2) or \
-                (x1 == x2+1 and z1 == z2+2) or (x1 == x2 and z1 == z2+2) or (x1 == x2-1 and z1 == z2+2) or \
-                (x1 == x2-2 and z1 == z2+2) or (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or \
-                (x1 == x2 - 1 and z1 == z2 + 1):
+        """(x2 == x1 + 2 and z1 == z1 - 2) or (x2 == x1 + 1 and z2 == z1 - 2) or (x2 == x1 and z2 == z1 - 2) or \
+        (x2 == x1 - 1 and z2 == z1 - 2) or (x2 == x1 - 2 and z2 == z1 - 2) or (x1 == x2+2 and z1 == z2+2) or \
+        (x1 == x2+1 and z1 == z2+2) or (x1 == x2 and z1 == z2+2) or (x1 == x2-1 and z1 == z2+2) or \
+        (x1 == x2-2 and z1 == z2+2) or """
+
+        if (x2 == x1 + 1 and z2 == z1 - 1) or (x2 == x1 and z2 == z1 - 1) or (x2 == x1 - 1 and z2 == z1 - 1) or \
+                (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or (x1 == x2 - 1 and z1 == z2 + 1):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movesouth 1")
             self.agent_host2.sendCommand("movennorth 1")
@@ -699,8 +668,8 @@ class ThesisEnvExperiment(gym.Env):
         x1 = y1 = z1 = x2 = y2 = z2 = 0
 
         if len(json.dumps(world_state1.observations[-1].text)) >= 1 and len(json.dumps(world_state2.observations[-1].text)) >= 1:
-            print("--recent Observations Tom: %s \n--recent observations Jerry %s \n" % (
-            json.dumps(world_state1.observations[-1].text), json.dumps(world_state2.observations[-1].text)))
+            #print("--recent Observations Tom: %s \n--recent observations Jerry %s \n" % (
+            #json.dumps(world_state1.observations[-1].text), json.dumps(world_state2.observations[-1].text)))
 
             msg1 = world_state1.observations[-1].text
             msg2 = world_state2.observations[-1].text
@@ -718,8 +687,11 @@ class ThesisEnvExperiment(gym.Env):
 
             if u'inventory' in obs1:
 
-                if self.flag_captured_tom and 11 <= x1 <= 14 and y1==64 and 0 <= z1 <= 5:
-                    # runter schauen, Block plazieren, draufspringen
+                if self.flag_captured_tom and 11 <= x1 <= 14 and 0 <= z1 <= 5:
+                    """ 
+                    if agent reached the target area:
+                    look down, set block, jump on it to reach wanted position and win the game 
+                    """
                     self.agent_host1.sendCommand("chat I won the game!")
                     self.append_save_file_with_finish(time_step, "Tom")
                     self.agent_host1.sendCommand("look 1")
@@ -729,20 +701,19 @@ class ThesisEnvExperiment(gym.Env):
                     self.agent_host1.sendCommand("jumpmove 1")
                     time.sleep(1)
                     self.agent_host1.sendCommand("look -1")
+                    self.mission_end = True
                 else:
                     if self.flag_captured_tom:
-                        self.agent_host1.sendCommand("jump 1")
                         print("[INFO] Tom holds the flag.")
                     else:
                         last_inventory_tom = obs1[u'inventory']
                         inventory_string_tom = json.dumps(last_inventory_tom)
-                        print("Toms last inventory: ", inventory_string_tom)
+                        #print("Toms last inventory: ", inventory_string_tom)
                         if (inventory_string_tom.find('lapis') != -1):
                             """ tauscht lapis mit log, sodass lapis zurück gelegt werden kann"""
                             if (json.dumps(last_inventory_tom[1]).find('lapis') != -1):
                                 self.agent_host1.sendCommand("swapInventoryItems 0 1")
                             self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
-                            # time.sleep(0.5)
                             self.agent_host1.sendCommand("use")
                         if (inventory_string_tom.find('log') != -1):
                             self.flag_captured_tom = True
@@ -752,8 +723,11 @@ class ThesisEnvExperiment(gym.Env):
 
         if u'inventory' in obs2:
 
-                if self.flag_captured_jerry and 0 <= x2 <= 4 and y2==64 and 11 <= z2 <= 14:
-                    # runter schauen, Block plazieren, draufspringen
+                if self.flag_captured_jerry and 0 <= x2 <= 4 and 11 <= z2 <= 14:
+                    """ 
+                    if agent reached the target area:
+                    look down, set block, jump on it to reach wanted position and win the game 
+                    """
                     self.agent_host2.sendCommand("chat I won the game!")
                     self.append_save_file_with_finish(time_step, "Jerry")
                     self.agent_host2.sendCommand("look 1")
@@ -762,14 +736,14 @@ class ThesisEnvExperiment(gym.Env):
                     time.sleep(1)
                     self.agent_host2.sendCommand("jumpmove 1")
                     self.agent_host2.sendCommand("look -1")
+                    self.mission_end = True
                 else:
                     if self.flag_captured_jerry:
                         print("[INFO] Jerry holds the flag.")
-                        self.agent_host2.sendCommand("jump 1")
                     else:
                         last_inventory_jerry = obs2[u'inventory']
                         inventory_string_jerry = json.dumps(last_inventory_jerry)
-                        print("Jerrys last inventory: ", inventory_string_jerry)
+                        #print("Jerrys last inventory: ", inventory_string_jerry)
                         if (inventory_string_jerry.find('log') != -1):
                             """ tauscht lapis mit log, sodass log zurück gelegt werden kann"""
                             if (json.dumps(last_inventory_jerry[1]).find('log') != -1):

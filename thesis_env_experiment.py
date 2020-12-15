@@ -53,6 +53,9 @@ available functions:
     append_save_file_with_agents_fail()
     append_save_file_with_finish(time_step, name)
     save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
+    get_cell_agents()
+    get_current_cell_agents()
+    get_position_in_arena(world_state)
     distance()
     check_inventory(time_step)
 """
@@ -74,8 +77,9 @@ class ThesisEnvExperiment(gym.Env):
     malmoutils.parse_command_line(agent_host3)
 
     """global variables to remember, if somebody already catched the flag"""
-    flag_captured_tom = False
-    flag_captured_jerry = False
+    flag_captured_tom = flag_captured_jerry = False
+    fetched_cell_tom = fetched_cell_jerry = cell_now_tom = cell_now_jerry = 0
+    time_stamp_start_for_distance = 0
 
     def __init__(self):
         super(ThesisEnvExperiment, self).__init__()
@@ -394,20 +398,22 @@ class ThesisEnvExperiment(gym.Env):
         for retry in range(self.max_retries + 1):
             try:
                 """ start missions for every client """
-                print("starting missions........")
+
+                print("\nstarting mission for agent #1")
                 time.sleep(5)
-                print("3")
                 self.agent_host1.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
-                                                0, experiment_ID)
+                                              0, experiment_ID)
+
+                print("starting mission for agent #2")
                 time.sleep(5)
-                print("2")
                 self.agent_host2.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               1, experiment_ID)
+
+                print("starting mission for agent #3")
                 time.sleep(5)
-                print("1")
                 self.agent_host3.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               2, experiment_ID)
-                print("0 \nmissions successfully started.....")
+                print("\nmissions successfully started.....\n")
                 break
             except RuntimeError as e:
                 if retry == self.max_retries:
@@ -490,7 +496,7 @@ class ThesisEnvExperiment(gym.Env):
             else:
                 self.last_image2 = image
         else:
-            """ if m ission ends befor we got a frame, just take the last frame to reduce exceptions """
+            """ if mission ends befor we got a frame, just take the last frame to reduce exceptions """
             if agent_num == 1:
                 image = self.last_image1
             else:
@@ -562,33 +568,72 @@ class ThesisEnvExperiment(gym.Env):
         overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step))
         datei.close()
 
-    def get_position_in_arena(self, world_state):
+    def get_cell_agents(self):
+        """
+        gets the cell coordinates for the agents to compare with every 20 seconds
+        """
+        world_state1 = self.agent_host1.peekWorldState()
+        world_state2 = self.agent_host2.peekWorldState()
+        msg1 = world_state1.observations[-1].text
+        msg2 = world_state2.observations[-1].text
+        ob1 = json.loads(msg1)
+        ob2 = json.loads(msg2)
+        if "cell" in ob1 and "cell" in ob2:
+            self.fetched_cell_tom = ob1.get(u'cell', 0)
+            self.fetched_cell_jerry = ob2.get(u'cell', 0)
+            print("fetched cell tom: ", self.fetched_cell_tom)
+            print("fetched cell jerry: ", self.fetched_cell_jerry)
+
+    def get_current_cell_agents(self):
+        """
+        gets the cell coordinates for the agents at a state
+        """
+        world_state1 = self.agent_host1.peekWorldState()
+        world_state2 = self.agent_host2.peekWorldState()
+        msg1 = world_state1.observations[-1].text
+        msg2 = world_state2.observations[-1].text
+        ob1 = json.loads(msg1)
+        ob2 = json.loads(msg2)
+        if "cell" in ob1 and "cell" in ob2:
+            self.cell_now_tom = ob1.get(u'cell', 0)
+            self.cell_now_jerry = ob2.get(u'cell', 0)
+            print("current cell tom: ", self.cell_now_tom)
+            print("current cell jerry: ", self.cell_now_jerry)
+
+    def get_position_in_arena(self, world_state, time_step, agent_num):
         """
         get (x,y,z) Positioncoordinates of agent
+        fetch the cell coordinates every 20 seconds
+        check with current coordinates -> if they are the same more than 20 seconds, it is nearly safe, that the agents
+        crashed into each other -> declare mission as failed and end it
         RETURN: x,y,z
         """
-        x = y = z = t = x_last = z_last = 0
+
+        x = y = z = t = 0
         while world_state:
             if len(world_state.observations) >= 1:
                 msg = world_state.observations[-1].text
                 ob = json.loads(msg)
+                time_now = time.time()
 
-                if t >=3:
-                    msg_last = world_state.observations[-2].text
-                    ob_last = json.loads(msg_last)
-                    if "XPos" in ob_last and "ZPos" in ob_last and "YPos" in ob_last:
-                        x_last = ob_last[u'XPos']
-                        z_last = ob_last[u'ZPos']
+                if time_now - self.time_stamp_start_for_distance > 20:
+                    """ fetch cell every 20 seconds """
+                    self.get_cell_agents()
+                    self.time_stamp_start_for_distance = time.time()
+
+                seconds = time_now - self.time_stamp_start_for_distance
+                #print("seconds: ", int(seconds))
+                if int(seconds) == 18:
+                    self.get_current_cell_agents()
+                    if self.fetched_cell_tom == self.cell_now_tom and self.fetched_cell_jerry == self.cell_now_jerry:
+                        print("They ran into each other again.")
+                        self.append_save_file_with_agents_fail()
+                        self.mission_end = True
 
                 if "XPos" in ob and "ZPos" in ob and "YPos" in ob:
                     x = ob[u'XPos']
                     y = ob[u'YPos']
                     z = ob[u'ZPos']
-
-                    if (t >= 3) and ((x == x_last) and (z == z_last)):
-                        self.append_save_file_with_agents_fail()
-                        self.mission_end = True
-
                 return x, y, z
             else:
                 if t == 20:
@@ -597,10 +642,10 @@ class ThesisEnvExperiment(gym.Env):
                     return x, y, z
                 else:
                     time.sleep(1)
-                    print(".")
+                    print(t)
                     t += 1
 
-    def distance(self):
+    def distance(self, time_step):
         """
         check if agents are to near to eachother
         move apart if so
@@ -613,8 +658,8 @@ class ThesisEnvExperiment(gym.Env):
             world_state1 = self.agent_host1.peekWorldState()
             world_state2 = self.agent_host2.peekWorldState()
 
-            x1, y1, z1 = self.get_position_in_arena(world_state1)
-            x2, y2, z2 = self.get_position_in_arena(world_state2)
+            x1, y1, z1 = self.get_position_in_arena(world_state1, time_step, 1)
+            x2, y2, z2 = self.get_position_in_arena(world_state2, time_step, 2)
             print("...")
 
         # print("  \tTom \tJerry \nX: \t %i\t %i \nY: \t %i\t %i \nZ: \t %i\t %i" % (x1, x2, y1, y2, z1, z2))
@@ -624,8 +669,9 @@ class ThesisEnvExperiment(gym.Env):
         (x1 == x2+1 and z1 == z2-2) or (x1 == x2 and z1 == z2-2) or (x1 == x2-1 and z1 == z2-2) or \
         (x1 == x2-2 and z1 == z2-2) or """
 
-        if (x2 == x1 + 1 and z2 == z1 + 1) or (x2 == x1 and z2 == z1 + 1) or (x2 == x1 - 1 and z2 == z1 + 1) or \
-                (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or (x1 == x2 - 1 and z1 == z2 - 1):
+        if (x1 == x2 and z1 == z2) or (x2 == x1 + 1 and z2 == z1 + 1) or (x2 == x1 and z2 == z1 + 1) or \
+                (x2 == x1 - 1 and z2 == z1 + 1) or (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or \
+                (x1 == x2 - 1 and z1 == z2 - 1):
             print("---------------------------------------------------- stop!! agents too close!")
             self.agent_host1.sendCommand("movenorth 1")
             self.agent_host2.sendCommand("movesouth 1")
@@ -681,13 +727,13 @@ class ThesisEnvExperiment(gym.Env):
                 world_state1 = self.agent_host1.peekWorldState()
                 world_state2 = self.agent_host2.peekWorldState()
 
-                x1, y1, z1 = self.get_position_in_arena(world_state1)
-                x2, y2, z2 = self.get_position_in_arena(world_state2)
+                x1, y1, z1 = self.get_position_in_arena(world_state1, time_step, 1)
+                x2, y2, z2 = self.get_position_in_arena(world_state2, time_step, 2)
                 print("..")
 
             if u'inventory' in obs1:
 
-                if self.flag_captured_tom and 11 <= x1 <= 14 and 0 <= z1 <= 5:
+                if self.flag_captured_tom and (11 <= x1 <= 14 and 0 <= z1 <= 5):
                     """ 
                     if agent reached the target area:
                     look down, set block, jump on it to reach wanted position and win the game 
@@ -709,12 +755,13 @@ class ThesisEnvExperiment(gym.Env):
                         last_inventory_tom = obs1[u'inventory']
                         inventory_string_tom = json.dumps(last_inventory_tom)
                         #print("Toms last inventory: ", inventory_string_tom)
-                        if (inventory_string_tom.find('lapis') != -1):
-                            """ tauscht lapis mit log, sodass lapis zurück gelegt werden kann"""
-                            if (json.dumps(last_inventory_tom[1]).find('lapis') != -1):
+                        if (inventory_string_tom.find('quartz') != -1):
+                            """ tauscht quartz mit log, sodass quartz zurück gelegt werden kann"""
+                            if (json.dumps(last_inventory_tom[1]).find('quartz') != -1):
                                 self.agent_host1.sendCommand("swapInventoryItems 0 1")
                             self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
                             self.agent_host1.sendCommand("use")
+                            self.agent_host1.sendCommand("swapInventoryItems 0 1")
                         if (inventory_string_tom.find('log') != -1):
                             self.flag_captured_tom = True
                             self.append_save_file_with_flag(time_step, "Tom")
@@ -723,7 +770,7 @@ class ThesisEnvExperiment(gym.Env):
 
         if u'inventory' in obs2:
 
-                if self.flag_captured_jerry and 0 <= x2 <= 4 and 11 <= z2 <= 14:
+                if self.flag_captured_jerry and (0 <= x2 <= 4 and 12 >= z2 <= 15):
                     """ 
                     if agent reached the target area:
                     look down, set block, jump on it to reach wanted position and win the game 
@@ -745,13 +792,13 @@ class ThesisEnvExperiment(gym.Env):
                         inventory_string_jerry = json.dumps(last_inventory_jerry)
                         #print("Jerrys last inventory: ", inventory_string_jerry)
                         if (inventory_string_jerry.find('log') != -1):
-                            """ tauscht lapis mit log, sodass log zurück gelegt werden kann"""
+                            """ tauscht quartz mit log, sodass log zurück gelegt werden kann"""
                             if (json.dumps(last_inventory_jerry[1]).find('log') != -1):
                                 self.agent_host2.sendCommand("swapInventoryItems 0 1")
                             self.agent_host2.sendCommand("chat Wrong flag, I'll put it back!")
-                            #time.sleep(0.5)
                             self.agent_host2.sendCommand("use")
-                        if (inventory_string_jerry.find('lapis') != -1):
+                            self.agent_host1.sendCommand("swapInventoryItems 0 1")
+                        if (inventory_string_jerry.find('quartz') != -1):
                             self.flag_captured_jerry = True
                             self.append_save_file_with_flag(time_step, "Jerry")
                             print("----------------------------------------------------------------Jerry captured the flag after %i seconds!" % (time_step))

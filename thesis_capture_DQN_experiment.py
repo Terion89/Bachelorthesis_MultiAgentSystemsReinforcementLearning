@@ -225,7 +225,7 @@ if __name__ == '__main__':
     time_stamp_start = time.time()
     print("actual time: ", time_stamp_start)
 
-    experiment_ID = "a"
+    experiment_ID = ""
 
     """ initial observation """
     obs1, obs2 = env.reset_world(experiment_ID)
@@ -256,15 +256,15 @@ if __name__ == '__main__':
                 print("Actual Reward Jerry: ", overall_reward_agent_Jerry)
                 print("--------------------------------------------------------------------")
 
-                """ check if agents run too close """
-                env.distance()
-
                 """ hook """
                 for hook in step_hooks:
                     hook(env, tom, t)
                     hook(env, jerry, t)
 
                 time_step = time_stamp_actual - time_stamp_start
+
+                """ check if agents run too close """
+                env.distance(time_step)
 
                 """ check, if an agent captured the flag """
                 env.check_inventory(time_step)
@@ -300,8 +300,10 @@ if __name__ == '__main__':
                     """ initialisation for the next episode, reset parameters, build new world """
                     t += 1
                     r1 = r2 = 0
-                    done1 = done2 = False
+                    done1 = done2 = env.mission_end = False
                     overall_reward_agent_Jerry = overall_reward_agent_Tom = 0
+                    env.travelled_distance = 1
+                    env.check_value_for_distance_update = 0
                     time_stamp_start = time.time()
                     env.save_new_round(t)
                     obs1, obs2 = env.reset_world(experiment_ID)
@@ -310,6 +312,7 @@ if __name__ == '__main__':
 
                     """ recover """
                     time.sleep(5)
+
                     """if evaluator1 and evaluator2 is not None:
                         evaluator1.evaluate_if_necessary(
                             t=t, episodes=episode_idx + 1)

@@ -240,6 +240,11 @@ if __name__ == '__main__':
 
                 """ current time to calculate the elapsed time """
                 time_stamp_actual = time.time()
+                time_step = time_stamp_actual - time_stamp_start
+                print("mission time up: %i sec" % (time_step))
+
+                """ check if agents run too close """
+                env.distance(time_step)
 
                 """ calculate the next steps for the agents """
                 action1 = tom.act_and_train(obs1, r1)
@@ -249,79 +254,38 @@ if __name__ == '__main__':
                 obs1, r1, done1, info1 = env.step_generating(action1, 1)
                 obs2, r2, done2, info2 = env.step_generating(action2, 2)
 
+
                 """ sum up the reward for every episode """
                 overall_reward_agent_Tom += r1
                 overall_reward_agent_Jerry += r2
-                print("Actual Reward Tom:   ", overall_reward_agent_Tom)
-                print("Actual Reward Jerry: ", overall_reward_agent_Jerry)
-                print("--------------------------------------------------------------------")
+                print("Current Reward Tom:   ", overall_reward_agent_Tom)
+                print("Current Reward Jerry: ", overall_reward_agent_Jerry)
 
                 """ hook """
                 for hook in step_hooks:
                     hook(env, tom, t)
                     hook(env, jerry, t)
 
-                time_step = time_stamp_actual - time_stamp_start
-
-                """ check if agents run too close """
-                env.distance(time_step)
-
                 """ check, if an agent captured the flag """
                 env.check_inventory(time_step)
 
-                print("mission time up: %i sec" % (time_step))
+                print("--------------------------------------------------------------------")
 
                 """ end mission when both agents finished or time is over, start over again """
-                if (done1 and done2) or (time_step > 1920) or (env.mission_end == True):  # 960 = 16 min | 1920 = 32 min
+                if env.mission_end or done1 or done2 or (time_step > 1920):  # 960 = 16 min | 1920 = 32 min
 
-                    """ send mission QuitCommands to tell Malmo that the mission has ended """
-                    env.agent_host1.sendCommand("quit")
-                    env.agent_host2.sendCommand("quit")
-                    env.agent_host3.sendCommand("quit")
+                    """ send mission QuitCommands to tell Malmo that the mission has ended,save and reset everything """
+                    t, obs1, obs2, r1, r2, done1, done2, overall_reward_agent_Jerry, overall_reward_agent_Tom = \
+                        env.sending_mission_quit_commands(overall_reward_agent_Tom, overall_reward_agent_Jerry,
+                                                          time_step, obs1, r1, obs2, r2, outdir, t, tom, jerry,
+                                                          experiment_ID)
 
-                    """ save and show results of reward calculations """
-                    env.save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
-                    print("Final Reward Tom:   ", overall_reward_agent_Tom)
-                    print("Final Reward Jerry: ", overall_reward_agent_Jerry)
-
-                    """ end episode, save results """
-                    tom.stop_episode_and_train(obs1, r1, done=True)
-                    jerry.stop_episode_and_train(obs2, r2, done=True)
-                    print("outdir: %s step: %s " % (outdir, t))
-                    print("Tom's statistics:   ", tom.get_statistics())
-                    print("Jerry's statistics: ", jerry.get_statistics())
-
-                    """ save the final model and results """
-                    save_agent(tom, t, outdir, logger, suffix='_finish_01')
-                    save_agent(jerry, t, outdir, logger, suffix='_finish_02')
-
-
-
-                    """ initialisation for the next episode, reset parameters, build new world """
-                    t += 1
-                    r1 = r2 = 0
-                    done1 = done2 = env.mission_end = False
-                    overall_reward_agent_Jerry = overall_reward_agent_Tom = 0
-                    env.travelled_distance = 1
-                    env.check_value_for_distance_update = 0
                     time_stamp_start = time.time()
-                    env.save_new_round(t)
-                    obs1, obs2 = env.reset_world(experiment_ID)
-                    # print("obs1: ", obs1)
-                    # print("\nobs2: ", obs2)
 
                     """ recover """
                     time.sleep(5)
 
-                    """if evaluator1 and evaluator2 is not None:
-                        evaluator1.evaluate_if_necessary(
-                            t=t, episodes=episode_idx + 1)
-                        evaluator2.evaluate_if_necessary(
-                            t=t, episodes=episode_idx + 1)
-                        if (successful_score is not None and
-                                evaluator1.max_score >= successful_score and evaluator2.max_score >= successful_score):
-                            break"""
-                if t == 1000:
+                if t == 1001:
                     print("Mission-Set finished. Congratulations! Check results and parameters. Start over.")
                     break
 

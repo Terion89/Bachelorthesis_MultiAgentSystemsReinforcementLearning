@@ -30,12 +30,14 @@
                     <!-- floor -->
                     <DrawCuboid x1="0"  y1="45" z1="0"  x2="15" y2="45" z2="15" type="sandstone" />
                     <!-- base 01: Tom -->
-                    <DrawCuboid x1="12"  y1="45" z1="0"  x2="15" y2="45" z2="3" type="iron_ore" />
+                    <DrawCuboid x1="10"  y1="45" z1="0"  x2="15" y2="45" z2="5" type="redstone_block" />
+                    <DrawCuboid x1="11"  y1="45" z1="0"  x2="15" y2="45" z2="4" type="iron_ore" />
                     <DrawCuboid x1="15" y1="46" z1="0" x2="15" y2="60" z2="0" type="emerald_block" />
                     <DrawCuboid x1="14"  y1="47" z1="0"  x2="15" y2="47" z2="1" type="quartz_block" /><!-- flag -->
                     <DrawCuboid x1="14"  y1="46" z1="0"  x2="15" y2="46" z2="1" type="emerald_block" />
                     <!-- base 02: Jerry -->
-                    <DrawCuboid x1="0"  y1="45" z1="11"  x2="3" y2="45" z2="15" type="gold_ore" />
+                    <DrawCuboid x1="0"  y1="45" z1="9"  x2="5" y2="45" z2="15" type="emerald_block" />
+                    <DrawCuboid x1="0"  y1="45" z1="10"  x2="4" y2="45" z2="15" type="gold_ore" />
                     <DrawCuboid x1="0" y1="46" z1="14" x2="0" y2="60" z2="14" type="redstone_block" />
                     <DrawCuboid x1="0"  y1="47" z1="13"  x2="1" y2="47" z2="14" type="log" /><!-- flag -->
                     <DrawCuboid x1="0"  y1="46" z1="13"  x2="1" y2="46" z2="14" type="redstone_block" />
@@ -54,7 +56,7 @@
   <AgentSection mode="Survival">
     <Name>Tom</Name>
     <AgentStart>
-      <Placement x="11.5"  y="46" z="2.5" pitch="0" yaw="0"/>
+      <Placement x="9.5"  y="46" z="0.5" pitch="0" yaw="0"/>
       <Inventory>
           <InventoryItem type="diamond_pickaxe" slot="4"/>
       </Inventory>
@@ -71,42 +73,47 @@
         <Height>300</Height>
       </VideoProducer>
       <RewardForTouchingBlockType>
+        <Block reward="-40.0" type="emerald_block" behaviour="onceOnly"/>
+        <Block reward="40.0" type="redstone_block" behaviour="onceOnly"/>
 		<Block reward="20.0" type="sandstone" behaviour="onceOnly"/>
         <Block reward="-10.0" type="iron_ore" behaviour="onceOnly"/>
         <Block reward="1000.0" type="gold_ore" behaviour="onceOnly"/>
         <Block reward="1.0" type="cobblestone" behaviour="constant"/>
-          <Block reward="-200.0" type="bedrock" behaviour="constant"/>
+        <Block reward="-200.0" type="bedrock" behaviour="constant"/>
         <Block reward="100000.0" type="log" behaviour="onceOnly"/>
         <Block reward="-100000.0" type="quartz_block" behaviour="onceOnly"/>
       </RewardForTouchingBlockType>
       <RewardForSendingCommand reward="-5" />
+        <RewardForSendingMatchingChatMessage>
+          <ChatMatch description="I won the game!" reward="1000000" regex=""/>
+        </RewardForSendingMatchingChatMessage>
         <RewardForCollectingItem>
           <Item reward="-3000" type="bedrock"/>
           <Item reward="-3000" type="quartz_block"/>
-          <Item reward="10000" type="log"/>
+          <Item reward="100000" type="log"/>
       </RewardForCollectingItem>
         <AgentQuitFromReachingPosition>
-           <Marker tolerance="0.5" x="11" y="47" z="0"/>
-            <Marker tolerance="0.5" x="11" y="47" z="1"/>
-            <Marker tolerance="0.5" x="11" y="47" z="2"/>
-            <Marker tolerance="0.5" x="11" y="47" z="3"/>
-            <Marker tolerance="0.5" x="11" y="47" z="4"/>
-            <Marker tolerance="0.5" x="12" y="47" z="0"/>
-            <Marker tolerance="0.5" x="12" y="47" z="1"/>
-            <Marker tolerance="0.5" x="12" y="47" z="2"/>
-            <Marker tolerance="0.5" x="12" y="47" z="3"/>
-            <Marker tolerance="0.5" x="12" y="47" z="4"/>
-            <Marker tolerance="0.5" x="13" y="47" z="1"/>
-            <Marker tolerance="0.5" x="13" y="47" z="1"/>
-            <Marker tolerance="0.5" x="13" y="47" z="2"/>
-            <Marker tolerance="0.5" x="13" y="47" z="3"/>
-            <Marker tolerance="0.5" x="13" y="47" z="4"/>
-            <Marker tolerance="0.5" x="14" y="47" z="2"/>
-            <Marker tolerance="0.5" x="14" y="47" z="3"/>
-            <Marker tolerance="0.5" x="14" y="47" z="4"/>
-            <Marker tolerance="0.5" x="15" y="47" z="2"/>
-            <Marker tolerance="0.5" x="15" y="47" z="3"/>
-            <Marker tolerance="0.5" x="15" y="47" z="4"/>
+          <Marker tolerance="0.5" x="11" y="47" z="0"/>
+          <Marker tolerance="0.5" x="11" y="47" z="1"/>
+          <Marker tolerance="0.5" x="11" y="47" z="2"/>
+          <Marker tolerance="0.5" x="11" y="47" z="3"/>
+          <Marker tolerance="0.5" x="11" y="47" z="4"/>
+          <Marker tolerance="0.5" x="12" y="47" z="0"/>
+          <Marker tolerance="0.5" x="12" y="47" z="1"/>
+          <Marker tolerance="0.5" x="12" y="47" z="2"/>
+          <Marker tolerance="0.5" x="12" y="47" z="3"/>
+          <Marker tolerance="0.5" x="12" y="47" z="4"/>
+          <Marker tolerance="0.5" x="13" y="47" z="1"/>
+          <Marker tolerance="0.5" x="13" y="47" z="1"/>
+          <Marker tolerance="0.5" x="13" y="47" z="2"/>
+          <Marker tolerance="0.5" x="13" y="47" z="3"/>
+          <Marker tolerance="0.5" x="13" y="47" z="4"/>
+          <Marker tolerance="0.5" x="14" y="47" z="2"/>
+          <Marker tolerance="0.5" x="14" y="47" z="3"/>
+          <Marker tolerance="0.5" x="14" y="47" z="4"/>
+          <Marker tolerance="0.5" x="15" y="47" z="2"/>
+          <Marker tolerance="0.5" x="15" y="47" z="3"/>
+          <Marker tolerance="0.5" x="15" y="47" z="4"/>
       </AgentQuitFromReachingPosition>
         <MissionQuitCommands quitDescription="quit"/>
     </AgentHandlers>
@@ -115,9 +122,9 @@
   <AgentSection mode="Survival">
     <Name>Jerry</Name>
     <AgentStart>
-      <Placement x="2.5"  y="46" z="10.5" pitch="0" yaw="180"/>
+      <Placement x="6.5"  y="46" z="14.5" pitch="0" yaw="180"/>
       <Inventory>
-          <InventoryItem type="diamond_pickaxe" slot="4"/>
+        <InventoryItem type="diamond_pickaxe" slot="4"/>
       </Inventory>
     </AgentStart>
     <AgentHandlers>
@@ -132,10 +139,12 @@
         <Height>300</Height>
       </VideoProducer>
       <RewardForTouchingBlockType>
+        <Block reward="40.0" type="emerald_block" behaviour="onceOnly"/>
+        <Block reward="-40.0" type="redstone_block" behaviour="onceOnly"/>
 		<Block reward="20.0" type="sandstone" behaviour="onceOnly"/>
         <Block reward="-10.0" type="gold_ore" behaviour="onceOnly"/>
         <Block reward="1.0" type="cobblestone" behaviour="constant"/>
-          <Block reward="-200.0" type="bedrock" behaviour="constant"/>
+        <Block reward="-200.0" type="bedrock" behaviour="constant"/>
         <Block reward="1000.0" type="iron_ore" behaviour="onceOnly"/>
         <Block reward="-100000.0" type="log" behaviour="onceOnly"/>
         <Block reward="100000.0" type="quartz_block" behaviour="onceOnly"/>
@@ -143,9 +152,12 @@
       <RewardForCollectingItem>
         <Item reward="-3000" type="bedrock"/>
         <Item reward="-3000" type="log"/>
-        <Item reward="10000" type="quartz_block"/>
+        <Item reward="100000" type="quartz_block"/>
       </RewardForCollectingItem>
       <RewardForSendingCommand reward="-5" />
+        <RewardForSendingMatchingChatMessage>
+          <ChatMatch description="I won the game!" reward="1000000"  regex=""/>
+        </RewardForSendingMatchingChatMessage>
       <AgentQuitFromReachingPosition>
           <Marker tolerance="0.5" x="0" y="47" z="10"/>
           <Marker tolerance="0.5" x="0" y="47" z="11"/>
@@ -186,5 +198,4 @@
           </VideoProducer>
         </AgentHandlers>
       </AgentSection>
-
 </Mission>

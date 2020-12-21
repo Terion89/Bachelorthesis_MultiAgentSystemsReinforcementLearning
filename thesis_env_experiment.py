@@ -21,6 +21,10 @@ from chainerrl import misc
 from chainerrl import q_functions
 from chainerrl import replay_buffer
 
+from chainerrl.experiments.evaluator import Evaluator
+from chainerrl.experiments.evaluator import save_agent
+from thesis import thesis_evaluation_experiment
+
 """
 Logging for easier Debugging
 options: DEBUG, ALL, INFO
@@ -80,6 +84,30 @@ class ThesisEnvExperiment(gym.Env):
     flag_captured_tom = flag_captured_jerry = False
     fetched_cell_tom = fetched_cell_jerry = cell_now_tom = cell_now_jerry = 0
     time_stamp_start_for_distance = 0
+    too_close_counter = 0
+    time_step_tom_won = None
+    time_step_jerry_won = None
+    time_step_tom_captured_the_flag = None
+    time_step_jerry_captured_the_flag = None
+    winner_agent = "-"
+    time_step_agents_ran_into_each_other = None
+    steps_tom = 0
+    steps_jerry = 0
+    episode_counter = 0
+
+    """ collected data for evaluation """
+    evaluation_episode_counter = []
+    evaluation_too_close_counter = []
+    evaluation_episode_time = []
+    evaluation_flag_captured_tom = []
+    evaluation_flag_captured_jerry = []
+    evaluation_agents_ran_into_each_other = []
+    evaluation_game_won_timestamp = []
+    evaluation_winner_agent = []
+    evaluation_reward_tom = []
+    evaluation_reward_jerry = []
+    evaluation_steps_tom = []
+    evaluation_steps_jerry = []
 
     def __init__(self):
         super(ThesisEnvExperiment, self).__init__()
@@ -386,6 +414,9 @@ class ThesisEnvExperiment(gym.Env):
     def reset_world(self, experiment_ID):
         """
         reset the arena and start the missions per agent
+        The sleep-timer of 6sec is required, because the client needs far too much time to set up the mission
+        for the first time.
+        All followed missions start faster.
         """
         print("force world reset........")
         self.flag_captured_tom = False
@@ -400,17 +431,17 @@ class ThesisEnvExperiment(gym.Env):
                 """ start missions for every client """
 
                 print("\nstarting mission for agent #1")
-                time.sleep(5)
+                time.sleep(6)
                 self.agent_host1.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               0, experiment_ID)
 
                 print("starting mission for agent #2")
-                time.sleep(5)
+                time.sleep(6)
                 self.agent_host2.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               1, experiment_ID)
 
                 print("starting mission for agent #3")
-                time.sleep(5)
+                time.sleep(6)
                 self.agent_host3.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               2, experiment_ID)
                 print("\nmissions successfully started.....\n")
@@ -445,7 +476,12 @@ class ThesisEnvExperiment(gym.Env):
         """
         if len(self.action_spaces) == 1:
             actions = [actions]
-        print(actions)
+        #print(actions)
+
+        if agent_num == 1:
+            self.steps_tom += 1
+        else:
+            self.steps_jerry += 1
 
         for spc, cmds, acts in zip(self.action_spaces, self.action_names, actions):
             if isinstance(spc, spaces.Discrete):
@@ -559,13 +595,14 @@ class ThesisEnvExperiment(gym.Env):
         datei.write("%s won the game after %i seconds.\n" % (name, time_step))
         datei.close()
 
-    def save_results(self,overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step):
+    def save_results(self, overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step):
         """
         saves the results in results.txt
         """
         datei = open('results.txt', 'a')
+        datei.write("The agents were %i times very close to each other.\n" % (self.too_close_counter))
         datei.write("Reward Tom: %i, Reward Jerry: %i , Time: %f \n\n" % (
-        overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step))
+            overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step))
         datei.close()
 
     def get_cell_agents(self):
@@ -600,7 +637,7 @@ class ThesisEnvExperiment(gym.Env):
             print("current cell tom: ", self.cell_now_tom)
             print("current cell jerry: ", self.cell_now_jerry)
 
-    def get_position_in_arena(self, world_state, time_step, agent_num):
+    def get_position_in_arena(self, world_state, time_step):
         """
         get (x,y,z) Positioncoordinates of agent
         fetch the cell coordinates every 20 seconds
@@ -622,7 +659,7 @@ class ThesisEnvExperiment(gym.Env):
                     self.time_stamp_start_for_distance = time.time()
 
                 seconds = time_now - self.time_stamp_start_for_distance
-                #print("seconds: ", int(seconds))
+                # print("seconds: ", int(seconds))
                 if int(seconds) == 18:
                     self.get_current_cell_agents()
                     if self.fetched_cell_tom == self.cell_now_tom and self.fetched_cell_jerry == self.cell_now_jerry:
@@ -636,14 +673,15 @@ class ThesisEnvExperiment(gym.Env):
                     z = ob[u'ZPos']
                 return x, y, z
             else:
-                if t == 20:
+                if t == 5:
                     self.append_save_file_with_fail()
+                    self.time_step_agents_ran_into_each_other = time_step
                     self.mission_end = True
                     return x, y, z
                 else:
                     time.sleep(1)
-                    print(t)
                     t += 1
+                    print(t)
 
     def distance(self, time_step):
         """
@@ -658,8 +696,8 @@ class ThesisEnvExperiment(gym.Env):
             world_state1 = self.agent_host1.peekWorldState()
             world_state2 = self.agent_host2.peekWorldState()
 
-            x1, y1, z1 = self.get_position_in_arena(world_state1, time_step, 1)
-            x2, y2, z2 = self.get_position_in_arena(world_state2, time_step, 2)
+            x1, y1, z1 = self.get_position_in_arena(world_state1, time_step)
+            x2, y2, z2 = self.get_position_in_arena(world_state2, time_step)
             print("...")
 
         # print("  \tTom \tJerry \nX: \t %i\t %i \nY: \t %i\t %i \nZ: \t %i\t %i" % (x1, x2, y1, y2, z1, z2))
@@ -673,6 +711,7 @@ class ThesisEnvExperiment(gym.Env):
                 (x2 == x1 - 1 and z2 == z1 + 1) or (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or \
                 (x1 == x2 - 1 and z1 == z2 - 1):
             print("---------------------------------------------------- stop!! agents too close!")
+            self.too_close_counter += 1
             self.agent_host1.sendCommand("movenorth 1")
             self.agent_host2.sendCommand("movesouth 1")
 
@@ -680,8 +719,9 @@ class ThesisEnvExperiment(gym.Env):
         (x1 == x2-2 and z1 == z2+1) or (x1 == x2-2 and z1 == z2) or 
         (x1 == x2-2 and z1 == z2-1) or """
 
-        if (x2 == x1+1 and z2 == z1) or (x1 == x2-1 and z1 == z2):
+        if (x2 == x1 + 1 and z2 == z1) or (x1 == x2 - 1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
+            self.too_close_counter += 1
             self.agent_host1.sendCommand("movewest 1")
             self.agent_host2.sendCommand("moveeast 1")
 
@@ -689,8 +729,9 @@ class ThesisEnvExperiment(gym.Env):
         (x1 == x2+2 and z1 == z2+1) or (x1 == x2+2 and z1 == z2) or \
         (x1 == x2+2 and z1 == z2-1) or """
 
-        if (x2 == x1-1 and z2 == z1) or (x1 == x2+1 and z1 == z2):
+        if (x2 == x1 - 1 and z2 == z1) or (x1 == x2 + 1 and z1 == z2):
             print("---------------------------------------------------- stop!! agents too close!")
+            self.too_close_counter += 1
             self.agent_host1.sendCommand("moveeast 1")
             self.agent_host2.sendCommand("movewest 1")
 
@@ -702,6 +743,7 @@ class ThesisEnvExperiment(gym.Env):
         if (x2 == x1 + 1 and z2 == z1 - 1) or (x2 == x1 and z2 == z1 - 1) or (x2 == x1 - 1 and z2 == z1 - 1) or \
                 (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or (x1 == x2 - 1 and z1 == z2 + 1):
             print("---------------------------------------------------- stop!! agents too close!")
+            self.too_close_counter += 1
             self.agent_host1.sendCommand("movesouth 1")
             self.agent_host2.sendCommand("movennorth 1")
 
@@ -709,13 +751,21 @@ class ThesisEnvExperiment(gym.Env):
         """
         checks, if the agent got the flag in his inventory
         """
-        world_state1 = self.agent_host1.peekWorldState()
-        world_state2 = self.agent_host2.peekWorldState()
-        x1 = y1 = z1 = x2 = y2 = z2 = 0
+        world_state1 = 0
+        world_state2 = 0
 
-        if len(json.dumps(world_state1.observations[-1].text)) >= 1 and len(json.dumps(world_state2.observations[-1].text)) >= 1:
-            #print("--recent Observations Tom: %s \n--recent observations Jerry %s \n" % (
-            #json.dumps(world_state1.observations[-1].text), json.dumps(world_state2.observations[-1].text)))
+        x1 = y1 = z1 = x2 = y2 = z2 = 0
+        while world_state1 == 0 and world_state2 == 0:
+            world_state1 = self.agent_host1.peekWorldState()
+            world_state2 = self.agent_host2.peekWorldState()
+            print("..")
+
+        while not len(world_state1.observations) >= 1 and not len(world_state2.observations) >= 1:
+            world_state1 = self.agent_host1.peekWorldState()
+            world_state2 = self.agent_host2.peekWorldState()
+            print("..")
+
+        if json.dumps(world_state1.observations[-1].text) and json.dumps(world_state2.observations[-1].text):
 
             msg1 = world_state1.observations[-1].text
             msg2 = world_state2.observations[-1].text
@@ -727,78 +777,198 @@ class ThesisEnvExperiment(gym.Env):
                 world_state1 = self.agent_host1.peekWorldState()
                 world_state2 = self.agent_host2.peekWorldState()
 
-                x1, y1, z1 = self.get_position_in_arena(world_state1, time_step, 1)
-                x2, y2, z2 = self.get_position_in_arena(world_state2, time_step, 2)
+                x1, y1, z1 = self.get_position_in_arena(world_state1, time_step)
+                x2, y2, z2 = self.get_position_in_arena(world_state2, time_step)
                 print("..")
 
-            if u'inventory' in obs1:
+            #if u'inventory' in obs1:
 
-                if self.flag_captured_tom and (11 <= x1 <= 14 and 0 <= z1 <= 5):
-                    """ 
-                    if agent reached the target area:
-                    look down, set block, jump on it to reach wanted position and win the game 
-                    """
-                    self.agent_host1.sendCommand("chat I won the game!")
-                    self.append_save_file_with_finish(time_step, "Tom")
-                    self.agent_host1.sendCommand("look 1")
-                    time.sleep(1)
-                    self.agent_host1.sendCommand("use 1")
-                    time.sleep(1)
-                    self.agent_host1.sendCommand("jumpmove 1")
-                    time.sleep(1)
-                    self.agent_host1.sendCommand("look -1")
-                    self.mission_end = True
+            self.get_current_cell_agents()
+
+            if self.flag_captured_tom and (
+                    12 <= x1 <= 15 and 0 <= z1 <= 4):  # "(11,0)" <= self.cell_now_tom < "(14,5)"
+                """ 
+                if agent reached the target area:
+                look down, set block, jump on it to reach wanted position and win the game 
+                """
+                self.agent_host1.sendCommand("chat I won the game!")
+                self.append_save_file_with_finish(time_step, "Tom")
+                self.time_step_tom_won = time_step
+                self.winner_agent = "Tom"
+
+                self.agent_host1.sendCommand("look 1")
+                time.sleep(0.2)
+                self.agent_host1.sendCommand("use 1")
+                time.sleep(0.2)
+                self.agent_host1.sendCommand("jumpmove 1")
+                time.sleep(0.2)
+                self.agent_host1.sendCommand("look -1")
+                self.mission_end = True
+            else:
+                if self.flag_captured_tom:
+                    print("[INFO] Tom holds the flag.")
                 else:
-                    if self.flag_captured_tom:
-                        print("[INFO] Tom holds the flag.")
-                    else:
-                        last_inventory_tom = obs1[u'inventory']
-                        inventory_string_tom = json.dumps(last_inventory_tom)
-                        #print("Toms last inventory: ", inventory_string_tom)
-                        if (inventory_string_tom.find('quartz') != -1):
-                            """ tauscht quartz mit log, sodass quartz zurück gelegt werden kann"""
-                            if (json.dumps(last_inventory_tom[1]).find('quartz') != -1):
-                                self.agent_host1.sendCommand("swapInventoryItems 0 1")
-                            self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
-                            self.agent_host1.sendCommand("use")
+                    last_inventory_tom = obs1[u'inventory']
+                    inventory_string_tom = json.dumps(last_inventory_tom)
+                    # print("Toms last inventory: ", inventory_string_tom)
+                    if (inventory_string_tom.find('quartz') != -1):
+                        """ tauscht quartz mit log, sodass quartz zurück gelegt werden kann"""
+                        if (json.dumps(last_inventory_tom[1]).find('quartz') != -1):
                             self.agent_host1.sendCommand("swapInventoryItems 0 1")
-                        if (inventory_string_tom.find('log') != -1):
-                            self.flag_captured_tom = True
-                            self.append_save_file_with_flag(time_step, "Tom")
-                            print(
-                                "----------------------------------------------------------------Tom captured the flag after %i seconds!" % (time_step))
+                        self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
+                        self.agent_host1.sendCommand("use")
+                        self.agent_host1.sendCommand("swapInventoryItems 0 1")
+                    if (inventory_string_tom.find('log') != -1):
+                        self.flag_captured_tom = True
+                        self.time_step_tom_captured_the_flag = time_step
+                        self.append_save_file_with_flag(time_step, "Tom")
+                        print(
+                            "----------------------------------------------------------------Tom captured the flag after %i seconds!" % (
+                                time_step))
 
-        if u'inventory' in obs2:
+        #if u'inventory' in obs2:
 
-                if self.flag_captured_jerry and (0 <= x2 <= 4 and 12 >= z2 <= 15):
-                    """ 
-                    if agent reached the target area:
-                    look down, set block, jump on it to reach wanted position and win the game 
-                    """
-                    self.agent_host2.sendCommand("chat I won the game!")
-                    self.append_save_file_with_finish(time_step, "Jerry")
-                    self.agent_host2.sendCommand("look 1")
-                    time.sleep(1)
-                    self.agent_host2.sendCommand("use 1")
-                    time.sleep(1)
-                    self.agent_host2.sendCommand("jumpmove 1")
-                    self.agent_host2.sendCommand("look -1")
-                    self.mission_end = True
-                else:
-                    if self.flag_captured_jerry:
-                        print("[INFO] Jerry holds the flag.")
-                    else:
-                        last_inventory_jerry = obs2[u'inventory']
-                        inventory_string_jerry = json.dumps(last_inventory_jerry)
-                        #print("Jerrys last inventory: ", inventory_string_jerry)
-                        if (inventory_string_jerry.find('log') != -1):
-                            """ tauscht quartz mit log, sodass log zurück gelegt werden kann"""
-                            if (json.dumps(last_inventory_jerry[1]).find('log') != -1):
-                                self.agent_host2.sendCommand("swapInventoryItems 0 1")
-                            self.agent_host2.sendCommand("chat Wrong flag, I'll put it back!")
-                            self.agent_host2.sendCommand("use")
-                            self.agent_host1.sendCommand("swapInventoryItems 0 1")
-                        if (inventory_string_jerry.find('quartz') != -1):
-                            self.flag_captured_jerry = True
-                            self.append_save_file_with_flag(time_step, "Jerry")
-                            print("----------------------------------------------------------------Jerry captured the flag after %i seconds!" % (time_step))
+        if self.flag_captured_jerry and (0 <= x2 <= 4 and 11 <= z2 <= 15):
+            """ 
+                if agent reached the target area:
+                look down, set block, jump on it to reach wanted position and win the game 
+                """
+            self.agent_host2.sendCommand("chat I won the game!")
+            self.append_save_file_with_finish(time_step, "Jerry")
+            self.time_step_jerry_won = time_step
+            self.winner_agent = "Jerry"
+            self.agent_host2.sendCommand("look 1")
+            time.sleep(0.2)
+            self.agent_host2.sendCommand("use 1")
+            time.sleep(0.2)
+            self.agent_host2.sendCommand("jumpmove 1")
+            time.sleep(0.2)
+            self.agent_host2.sendCommand("look -1")
+            self.mission_end = True
+        else:
+            if self.flag_captured_jerry:
+                print("[INFO] Jerry holds the flag.")
+            else:
+                last_inventory_jerry = obs2[u'inventory']
+                inventory_string_jerry = json.dumps(last_inventory_jerry)
+                # print("Jerrys last inventory: ", inventory_string_jerry)
+                if (inventory_string_jerry.find('log') != -1):
+                    """ tauscht quartz mit log, sodass log zurück gelegt werden kann"""
+                    if (json.dumps(last_inventory_jerry[1]).find('log') != -1):
+                        self.agent_host2.sendCommand("swapInventoryItems 0 1")
+                    self.agent_host2.sendCommand("chat Wrong flag, I'll put it back!")
+                    self.agent_host2.sendCommand("use")
+                    self.agent_host1.sendCommand("swapInventoryItems 0 1")
+                if (inventory_string_jerry.find('quartz') != -1):
+                    self.flag_captured_jerry = True
+                    self.time_step_jerry_captured_the_flag = time_step
+                    self.append_save_file_with_flag(time_step, "Jerry")
+                    print(
+                        "----------------------------------------------------------------Jerry captured the flag after %i seconds!" % (
+                            time_step))
+
+    def sending_mission_quit_commands(self, overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step, obs1, r1,
+                                      obs2, r2, outdir, t, tom, jerry, experiment_ID):
+
+        self.agent_host1.sendCommand("quit")
+        self.agent_host2.sendCommand("quit")
+        self.agent_host3.sendCommand("quit")
+
+        dirname = os.path.join(outdir, 'plots')
+        print("dirname: ", dirname)
+
+        """ save and show results of reward calculations """
+        self.save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
+        print("Final Reward Tom:   ", overall_reward_agent_Tom)
+        print("Final Reward Jerry: ", overall_reward_agent_Jerry)
+
+        """ end episode, save results """
+        tom.stop_episode_and_train(obs1, r1, done=True)
+        jerry.stop_episode_and_train(obs2, r2, done=True)
+        print("outdir: %s step: %s " % (outdir, t))
+        print("Tom's statistics:   ", tom.get_statistics())
+        print("Jerry's statistics: ", jerry.get_statistics())
+
+        """ save the final model and results """
+        save_agent(tom, t, outdir, logger, suffix='_finish_01')
+        save_agent(jerry, t, outdir, logger, suffix='_finish_02')
+
+        """ save all the collected data for evaluation graphs """
+        self.save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
+                                            overall_reward_agent_Jerry, dirname)
+        time.sleep(2)
+        """ initialisation for the next episode, reset parameters, build new world """
+        t += 1
+        self.episode_counter += 1
+        r1 = r2 = 0
+        done1 = done2 = self.mission_end = False
+        overall_reward_agent_Jerry = overall_reward_agent_Tom = 0
+        self.save_new_round(t)
+        obs1, obs2 = self.reset_world(experiment_ID)
+        self.too_close_counter = 0
+        self.winner_agent = "-"
+        self.time_step_tom_won = self.time_step_jerry_won = None
+        self.time_step_tom_captured_the_flag = self.time_step_jerry_captured_the_flag = None
+        self.time_step_agents_ran_into_each_other = None
+        self.steps_tom = 0
+        self.steps_jerry = 0
+
+        """ recover """
+
+        """if evaluator1 and evaluator2 is not None:
+            evaluator1.evaluate_if_necessary(
+                t=t, episodes=episode_idx + 1)
+            evaluator2.evaluate_if_necessary(
+                t=t, episodes=episode_idx + 1)
+            if (successful_score is not None and
+                    evaluator1.max_score >= successful_score and evaluator2.max_score >= successful_score):
+                break"""
+        return t, obs1, obs2, r1, r2, done1, done2, overall_reward_agent_Jerry, overall_reward_agent_Tom
+
+    def save_data_for_evaluation_plots(self, t, time_step, overall_reward_agent_Tom,
+                                       overall_reward_agent_Jerry, dirname):
+        """
+        t: number of episode
+        time_step: duration of the episode
+        too_close_counter: how often agents came too close
+        overall_reward_agent_Tom, overall_reward_agent_Jerry: reward of the agents
+        winner_agent: agent's name who won the episode, if there is no "-"
+        time_step_tom_won: timestep, Tom won the game, if not: 0
+        time_step_jerry_won: timestep, Jerry won the game, if not: 0
+        time_step_tom_captured_the_flag : timestep, Tom captured the flag, if not: 0
+        time_step_jerry_captured_the_flag : timestep, Jerry captured the flag, if not: 0
+        time_step_agents_ran_into_each_other: timestep; the agents ran into each other and the mission ends
+
+        """
+        print("t : ", self.episode_counter)
+        if self.episode_counter > 0:
+            """ Episode 0 is skipped, because there just starts the initialisation of the world, they do nothing. """
+            self.evaluation_agents_ran_into_each_other.append(self.time_step_agents_ran_into_each_other)
+            print(self.time_step_agents_ran_into_each_other)
+            if self.time_step_agents_ran_into_each_other is None:
+                self.evaluation_episode_counter.append(self.episode_counter)
+                self.evaluation_episode_time.append(time_step)
+                self.evaluation_too_close_counter.append(self.too_close_counter)
+                self.evaluation_reward_tom.append(overall_reward_agent_Tom)
+                self.evaluation_reward_jerry.append(overall_reward_agent_Jerry)
+                self.evaluation_winner_agent.append(self.winner_agent)
+
+                if self.winner_agent == "Tom":
+                    self.evaluation_game_won_timestamp.append(self.time_step_tom_won)
+                if self.winner_agent == "Jerry":
+                    self.evaluation_game_won_timestamp.append(self.time_step_jerry_won)
+
+                self.evaluation_flag_captured_tom.append(self.time_step_tom_captured_the_flag)
+                self.evaluation_flag_captured_jerry.append(self.time_step_jerry_captured_the_flag)
+                self.evaluation_steps_tom.append(self.steps_tom)
+                self.evaluation_steps_jerry.append(self.steps_jerry)
+
+            """ evaluate and print the plots """
+            thesis_evaluation_experiment.evaluate(t, self.evaluation_episode_counter, self.evaluation_episode_time,
+                                                  self.evaluation_too_close_counter, self.evaluation_reward_tom,
+                                                  self.evaluation_reward_jerry,
+                                                  self.evaluation_winner_agent, self.evaluation_game_won_timestamp,
+                                                  self.evaluation_flag_captured_tom,
+                                                  self.evaluation_flag_captured_jerry,
+                                                  self.evaluation_agents_ran_into_each_other, dirname,
+                                                  self.evaluation_steps_tom, self.evaluation_steps_jerry)

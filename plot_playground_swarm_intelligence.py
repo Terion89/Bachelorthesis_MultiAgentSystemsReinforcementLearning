@@ -1,12 +1,12 @@
+
+"""playground to test statistics outside the episode"""
+
 import matplotlib
 import time
-
 import os
-
 from matplotlib import pyplot as plt
 import pandas as p
 import numpy as np
-
 from matplotlib.pyplot import xticks
 
 evaluation_episode_counter = [2, 3, 6, 8, 9, 13, 14, 18, 21, 22, 24]

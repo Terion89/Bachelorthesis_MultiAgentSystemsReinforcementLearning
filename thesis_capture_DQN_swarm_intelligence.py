@@ -9,18 +9,14 @@ from thesis.CDF_swarm_intelligence.thesis_env_swarm_intelligence import ThesisEn
 import datetime as dt
 from malmo import MalmoPython
 import random
-
 from malmopy.agent.agent import ReplayMemory
-
 import argparse
 import os
 import sys
-
 from chainer import optimizers
 import gym
 from gym import spaces
 import numpy as np
-
 import chainerrl
 from thesis.chainer_dqn import DQN
 from thesis.observer import OBSERVER
@@ -38,14 +34,12 @@ if sys.version_info[0] == 2:
 else:
     import tkinter as tk
 
-
-# main
 if __name__ == '__main__':
 
     """ build the environment """
     env = ThesisEnvExperiment()
 
-    """ define some useful parameters """
+    """ define some useful parameters to separate the agents """
     num_01 = 1  # Agent number 1
     num_02 = 2  # Agent number 2
     num_03 = 3  # Agent number 3
@@ -96,16 +90,18 @@ if __name__ == '__main__':
     print('Output files are saved in {}'.format(args.outdir))
 
     """ initialize clientpool and environment """
-    client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002), ('127.0.0.1', 10003), ('127.0.0.1', 10004)]
+    client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002), ('127.0.0.1', 10003),
+                   ('127.0.0.1', 10004)]
     env.init(start_minecraft=False, client_pool=client_pool)
 
+    """ WIP: need to skip that """
     test = True
 
     """ set the seed """
     env_seed = args.seed
     env.seed(env_seed)
 
-    """Cast observations to float32 because the model needs float32"""
+    """ Cast observations to float32 because the model needs float32 """
     env = chainerrl.wrappers.CastObservationToFloat32(env)
 
     if args.monitor:
@@ -123,15 +119,16 @@ if __name__ == '__main__':
     obs_size = obs_space.low.size
     action_space = env.action_space
 
-    """ mission is running as long as 'done'-flag is true """
-    # print(args)
+    """ calculate everything to start the mission """
     q_func, opt, rbuf, explorer = env.dqn_q_values_and_neuronal_net(args, action_space, obs_size, obs_space)
 
     """ 
     initialize agents
-    tom:        player, mode = survival
-    jerry:      player, mode = survival
-    skye:       observer, mode = creative 
+    tom:            player, mode = survival
+    jerry:          player, mode = survival
+    roadrunner:     player, mode = survival
+    coyote:         player, mode = survival
+    skye:           observer, mode = creative 
     """
     tom = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
               explorer=explorer, replay_start_size=args.replay_start_size,
@@ -150,21 +147,21 @@ if __name__ == '__main__':
                 soft_update_tau=args.soft_update_tau,
                 )
     roadrunner = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
-                explorer=explorer, replay_start_size=args.replay_start_size,
-                target_update_interval=args.target_update_interval,
-                update_interval=args.update_interval,
-                minibatch_size=args.minibatch_size,
-                target_update_method=args.target_update_method,
-                soft_update_tau=args.soft_update_tau,
-                )
+                     explorer=explorer, replay_start_size=args.replay_start_size,
+                     target_update_interval=args.target_update_interval,
+                     update_interval=args.update_interval,
+                     minibatch_size=args.minibatch_size,
+                     target_update_method=args.target_update_method,
+                     soft_update_tau=args.soft_update_tau,
+                     )
     coyote = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
-                explorer=explorer, replay_start_size=args.replay_start_size,
-                target_update_interval=args.target_update_interval,
-                update_interval=args.update_interval,
-                minibatch_size=args.minibatch_size,
-                target_update_method=args.target_update_method,
-                soft_update_tau=args.soft_update_tau,
-                )
+                 explorer=explorer, replay_start_size=args.replay_start_size,
+                 target_update_interval=args.target_update_interval,
+                 update_interval=args.update_interval,
+                 minibatch_size=args.minibatch_size,
+                 target_update_method=args.target_update_method,
+                 soft_update_tau=args.soft_update_tau,
+                 )
     skye = OBSERVER()
 
     if args.load:
@@ -177,16 +174,16 @@ if __name__ == '__main__':
     initialize env parameters 
     env:                    environment container
     steps:                  maximum episode number
-    eval_n_steps:           
-    eval_interval:          
+    eval_n_steps:           ..
+    eval_interval:          ..
     outdir:                 directory to save the results
-    train_max_episode_len:  
+    train_max_episode_len:  ..
     logger:                 to log errors and information 
     step_offset:            startingpoint, is 0 at the beginning
-    eval_max_episode_len: 
-    successful_score:   
-    step_hooks:      
-    save_best_so_far_agent:               
+    eval_max_episode_len:   ..
+    successful_score:       ..
+    step_hooks:             ..
+    save_best_so_far_agent: .. not yet              
     """
     env = env
     steps = args.steps
@@ -207,7 +204,7 @@ if __name__ == '__main__':
 
     eval_max_episode_len = train_max_episode_len
 
-    """ evaluator to save best so far agent 
+    """ evaluator to save best so far agent ---  WIP
     evaluator1 = Evaluator(agent=tom,
                            n_steps=eval_n_steps,
                            n_episodes=eval_n_episodes,
@@ -231,12 +228,12 @@ if __name__ == '__main__':
                            )
     """
     """ 
-    int r1/r2:                  initialisation of the reward per agent, starts at 0
-    bool done_team01/done_team02:           mission is running as long as 'done'-flag is true 
-    int t:                      current step of episode, starts at 0
-    int max_episode_len:        None, set at another point
-    float time_step_start:      start time of the episode, to track length for timeout
-    string experiment_ID:       must be the same in every agent to combine them in one arena, must be a string
+    int r1/r2:                      initialisation of the reward per agent, starts at 0
+    bool done_team01/done_team02:   mission is running as long as 'done'-flag is true 
+    int t:                          current step of episode, starts at 0
+    int max_episode_len:            None, set at another point
+    float time_step_start:          start time of the episode, to track length for timeout
+    string experiment_ID:           must be the same in every agent to combine them in one arena, must be a string
     """
 
     r1 = r2 = r3 = r4 = 0
@@ -260,7 +257,7 @@ if __name__ == '__main__':
     """ initial observation """
     obs1, obs2, obs3, obs4 = env.reset_world(experiment_ID)
 
-    """ save new episode into result.txt """
+    """ save new episode start into result.txt """
     env.save_new_round(t)
 
     """ start training episodes """
@@ -273,27 +270,35 @@ if __name__ == '__main__':
                 time_step = time_stamp_actual - time_stamp_start
                 print("mission time up: %i sec" % (time_step))
 
-                """ check if agents run too close """
-                #env.distance(time_step)
 
                 """ calculate the next steps for the agents """
                 action1 = tom.act_and_train(obs1, r1)
                 action2 = jerry.act_and_train(obs2, r2)
                 action3 = roadrunner.act_and_train(obs3, r3)
                 action4 = coyote.act_and_train(obs4, r4)
-
+                #time.sleep(1)
+                """ check if agents would run into each other when they do the calculated step """
+                action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2,
+                                                                          obs3, obs4, r1, r2, r3, r4, action1, action2,
+                                                                          action3, action4, time_step)
+                #time.sleep(1)
                 """ do calculated steps and pass information of the time_step """
-                obs1, r1, done_team01, info1 = env.step_generating(action1, 1)
-                obs2, r2, done_team02, info2 = env.step_generating(action2, 2)
-                obs3, r3, done_team01, info3 = env.step_generating(action3, 3)
-                obs4, r4, done_team02, info4 = env.step_generating(action4, 4)
+                obs1, r1, done1, info1 = env.step_generating(action1, 1)
+                obs2, r2, done2, info2 = env.step_generating(action2, 2)
+                obs3, r3, done3, info3 = env.step_generating(action3, 3)
+                obs4, r4, done4, info4 = env.step_generating(action4, 4)
+                #time.sleep(1)
 
+                if done1 or done3:
+                    done_team01 = True
+                if done2 or done4:
+                    done_team02 = True
 
                 """ sum up the reward for every episode """
                 overall_reward_agent_Tom += r1
                 overall_reward_agent_Jerry += r2
-                overall_reward_agent_roadrunner += r1
-                overall_reward_agent_coyote += r2
+                overall_reward_agent_roadrunner += r3
+                overall_reward_agent_coyote += r4
                 print("Current Reward Tom:   ", overall_reward_agent_Tom)
                 print("Current Reward Jerry: ", overall_reward_agent_Jerry)
                 print("Current Reward Roadrunner:   ", overall_reward_agent_Tom)
@@ -311,11 +316,11 @@ if __name__ == '__main__':
 
                 print("--------------------------------------------------------------------")
 
-                """ end mission when both agents finished or time is over, start over again """
+                """ end mission when one agent finishes, the agents crash or the time is over, start over again """
                 if env.mission_end or done_team01 or done_team02 or (time_step > 1920):  # 960 = 16 min | 1920 = 32 min
 
                     """ send mission QuitCommands to tell Malmo that the mission has ended,save and reset everything """
-                    t, obs1, obs2, obs3, obs4, r1, r2, r3, r4, done_team01, done_team02, overall_reward_agent_Jerry, \
+                    t, obs1, obs2, r1, r2, obs3, obs4, r3, r4, done_team01, done_team02, overall_reward_agent_Jerry, \
                     overall_reward_agent_Tom, overall_reward_agent_roadrunner, overall_reward_agent_coyote = \
                         env.sending_mission_quit_commands(overall_reward_agent_Tom, overall_reward_agent_Jerry,
                                                           overall_reward_agent_roadrunner, overall_reward_agent_coyote,

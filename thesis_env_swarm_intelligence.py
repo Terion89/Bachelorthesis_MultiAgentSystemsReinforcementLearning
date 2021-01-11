@@ -1,10 +1,7 @@
 import sys
-
 import json
 import logging
-
 import time
-
 import gym
 import minecraft_py
 from gym import spaces
@@ -21,7 +18,6 @@ from thesis.chainerrl import links
 from thesis.chainerrl import misc
 from thesis.chainerrl import q_functions
 from thesis.chainerrl import replay_buffer
-
 from thesis.chainerrl.experiments.evaluator import Evaluator
 from thesis.chainerrl.experiments.evaluator import save_agent
 from thesis.CDF_swarm_intelligence import thesis_evaluation_swarm_intelligence
@@ -54,7 +50,7 @@ available functions:
     clip_action_filter(a)
     dqn_q_values_and_neuronal_net(args, action_space, obs_size, obs_space)
     step_generating(action, agent_num)
-    reset_world()
+    reset_world(experiment_ID)
     do_action(actions, agent_num)
     get_video_frame(world_state, agent_num)
     get_observation(world_state)
@@ -63,12 +59,28 @@ available functions:
     append_save_file_with_fail()
     append_save_file_with_agents_fail()
     append_save_file_with_finish(time_step, name)
-    save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, time_step)
+    save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+        overall_reward_agent_coyote,time_step)
     get_cell_agents()
     get_current_cell_agents()
-    get_position_in_arena(world_state)
-    distance()
+    get_world_state_ob(agent_num)
+    renew_world_state(agent_num)
+    get_position_in_arena(world_state, time_step, agent_num)
+    movenorth1_function(x, z)
+    movesouth1_function(x, z)
+    moveeast1_function(x, z)
+    movewest1_function(x, z)
+    get_new_position(action, x, z)
+    approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2, obs3, obs4, r1, r2, r3, r4,
+        action1, action2, action3, action4, time_step)
+    winner_behaviour(agent_host, time_step, name)
     check_inventory(time_step)
+    sending_mission_quit_commands(overall_reward_agent_Tom, overall_reward_agent_Jerry,
+    overall_reward_agent_roadrunner, overall_reward_agent_coyote, time_step, obs1, r1, obs2, r2, obs3, r3, 
+        obs4, r4, outdir, t, tom, jerry, roadrunner, coyote, experiment_ID)
+    save_data()
+    save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
+        overall_reward_agent_Jerry, overall_reward_agent_roadrunner, overall_reward_agent_coyote, dirname)
 """
 
 
@@ -94,7 +106,7 @@ class ThesisEnvExperiment(gym.Env):
     agent_host4 = MalmoPython.AgentHost()
     malmoutils.parse_command_line(agent_host4)
 
-    """global variables to remember, if somebody already catched the flag"""
+    """global variables to remember in game and for evaluation"""
     flag_captured_tom = flag_captured_jerry = flag_captured_roadrunner = flag_captured_coyote = False
     fetched_cell_tom = fetched_cell_jerry = cell_now_tom = cell_now_jerry = 0
     fetched_cell_roadrunner = fetched_cell_coyote = cell_now_roadrunner = cell_now_coyote = 0
@@ -146,6 +158,7 @@ class ThesisEnvExperiment(gym.Env):
         self.load_mission_file(mission_file)
         print("Mission loaded: Capture the Flag")
 
+        """ same clientpool as in main py script, needed in both places, otherwise doesn't work """
         self.client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002), ('127.0.0.1', 10003),
                             ('127.0.0.1', 10004)]
         self.mc_process = None
@@ -227,7 +240,7 @@ class ThesisEnvExperiment(gym.Env):
         self.observation_space = spaces.Box(low=0, high=255,
                                             shape=(self.video_height, self.video_width, self.video_depth))
         """
-        dummy image just for the first observation
+        dummy image for the first observation
         """
         self.last_image1 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.float32)
         self.last_image2 = np.zeros((self.video_height, self.video_width, self.video_depth), dtype=np.float32)
@@ -236,7 +249,7 @@ class ThesisEnvExperiment(gym.Env):
         self.create_action_space()
 
         """ 
-        mission recording 
+        mission recording spec
         """
         self.mission_record_spec = MalmoPython.MissionRecordSpec()  # record nothing
         if recordDestination:
@@ -249,7 +262,7 @@ class ThesisEnvExperiment(gym.Env):
             self.mission_record_spec.recordMP4(*recordMP4)
 
         """ 
-        game mode
+        game mode, default: survival
         """
         if gameMode:
             if gameMode == "spectator":
@@ -271,7 +284,7 @@ class ThesisEnvExperiment(gym.Env):
         unused_actions:     not wanted actions
         discrete_actions:   wanted actions
         """
-        # collect different actions based on allowed commands
+
         unused_actions = []
         discrete_actions = []
         chs = self.mission_spec.getListOfCommandHandlers(0)
@@ -279,9 +292,10 @@ class ThesisEnvExperiment(gym.Env):
             cmds = self.mission_spec.getAllowedCommands(0, ch)
             for command in cmds:
                 logger.debug(ch + ":" + command)
-                if command in ["movenorth", "movesouth", "movewest", "moveeast", "attack", "turn"]:
+                if command in ["movenorth", "movesouth", "movewest", "moveeast", "attack", "turn"]: # wanted actions
                     discrete_actions.append(command + " 1")
-                    discrete_actions.append(command + " -1")
+                    if command == "turn":
+                        discrete_actions.append(command + " -1")
                 else:
                     unused_actions.append(
                         command)
@@ -319,7 +333,7 @@ class ThesisEnvExperiment(gym.Env):
 
     def dqn_q_values_and_neuronal_net(self, args, action_space, obs_size, obs_space):
         """
-        learning process
+        WIP! learning process, etc
         """
 
         if isinstance(action_space, spaces.Box):
@@ -333,19 +347,21 @@ class ThesisEnvExperiment(gym.Env):
             # Use the Ornstein-Uhlenbeck process for exploration
             ou_sigma = (action_space.high - action_space.low) * 0.2
             explorer = explorers.AdditiveOU(sigma=ou_sigma)
+
         else:
+            # discrete movement
             n_actions = action_space.n
-            # print("n_actions: ", n_actions)
+            print("n_actions: ", n_actions)
             q_func = q_functions.FCStateQFunctionWithDiscreteAction(
                 obs_size, n_actions,
                 n_hidden_channels=args.n_hidden_channels,
                 n_hidden_layers=args.n_hidden_layers)
-            # print("q_func ", q_func)
+            print("q_func ", q_func)
             # Use epsilon-greedy for exploration
             explorer = explorers.LinearDecayEpsilonGreedy(
                 args.start_epsilon, args.end_epsilon, args.final_exploration_steps,
                 action_space.sample)
-            # print("explorer: ", explorer)
+            print("explorer: ", explorer)
 
         if args.noisy_net_sigma is not None:
             links.to_factorized_noisy(q_func, sigma_scale=args.noisy_net_sigma)
@@ -376,12 +392,17 @@ class ThesisEnvExperiment(gym.Env):
         """
         time step in arena
         next action is executed
-        reward of actual state is calculated and summed up with the overall reward
+        reward of current state is calculated and summed up with the overall reward
+        PARAMETERS: action, agent_num
         RETURN: image, reward, done, info
         """
         reward1 = reward2 = reward3 = reward4 = 0
         world_state1 = world_state2 = world_state3 = world_state4 = 0
+        image1 = image2 = image3 = image4 = 0
+        done_team01 = done_team02 = False
+        info1 = info2 = info3 = info4 = {}
 
+        """ loop to minimize errors if there is a broken world_state"""
         while world_state1 == 0 or world_state2 == 0 or world_state3 == 0 or world_state4 == 0:
             world_state1 = self.agent_host1.peekWorldState()
             world_state2 = self.agent_host2.peekWorldState()
@@ -427,7 +448,7 @@ class ThesisEnvExperiment(gym.Env):
             for r in world_state4.rewards:
                 reward4 += r.getValue()
 
-        """ take the last frame from world state | 'done'-flag indicated, if mission is still running """
+        """ take the last frame from world state | 'done'-flag indicates, if mission is still running """
         if agent_num == 1:
             image1 = self.get_video_frame(world_state1, 1)
             done_team01 = not world_state1.is_mission_running
@@ -498,7 +519,8 @@ class ThesisEnvExperiment(gym.Env):
         reset the arena and start the missions per agent
         The sleep-timer of 6sec is required, because the client needs far too much time to set up the mission
         for the first time.
-        All followed missions start faster.
+        All followed missions start faster (sometimes).
+        PARAMETERS: experiment_ID
         """
         print("force world reset........")
         self.flag_captured_tom = False
@@ -513,27 +535,27 @@ class ThesisEnvExperiment(gym.Env):
         for retry in range(self.max_retries + 1):
             try:
                 """ start missions for every client """
-                print("starting mission for agent #0")
+                print("starting mission for Tom")
                 time.sleep(6)
                 self.agent_host1.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               0, experiment_ID)
 
-                print("\nstarting mission for agent #1")
+                print("starting mission for Jerry")
                 time.sleep(6)
                 self.agent_host2.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               1, experiment_ID)
 
-                print("starting mission for agent #2")
+                print("starting mission for Roadrunner")
                 time.sleep(6)
                 self.agent_host3.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               2, experiment_ID)
 
-                print("starting mission for agent #3")
+                print("starting mission for Coyote")
                 time.sleep(6)
                 self.agent_host4.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               3, experiment_ID)
 
-                print("starting mission for agent #4")
+                print("starting mission for Skye")
                 time.sleep(6)
                 self.agent_host0.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               4, experiment_ID)
@@ -573,10 +595,12 @@ class ThesisEnvExperiment(gym.Env):
         """
         get next action from action_space
         execute action in environment for the agent
+        PARAMETERS: actions, agent_num
         """
         if len(self.action_spaces) == 1:
             actions = [actions]
 
+        """ count the steps for the individual agent """
         if agent_num == 1:
             self.steps_tom += 1
         if agent_num == 2:
@@ -629,19 +653,19 @@ class ThesisEnvExperiment(gym.Env):
     def get_video_frame(self, world_state, agent_num):
         """
         process video frame for called agent
+        PARAMETERS: world_state, agent_num
         RETURN: image for called agent
         """
-
+        image = 0
         if world_state.number_of_video_frames_since_last_state > 0:
             assert len(world_state.video_frames) == 1
             frame = world_state.video_frames[0]
             reshaped = np.zeros((self.video_height * self.video_width * self.video_depth), dtype=np.float32)
             image = np.frombuffer(frame.pixels, dtype=np.int8)
-            # print(reshaped.shape)
-            for i in range(self.video_height * self.video_width * self.video_depth):
+            for i in range(frame.height * frame.width * frame.channels):
                 reshaped[i] = image[i]
 
-            image = np.frombuffer(frame.pixels, dtype=np.float32)  # 300x400 = 120000 Werte // np.float32
+            # image = np.frombuffer(frame.pixels, dtype=np.float32) #300x400 = 120000 Werte // np.float32
             image = reshaped.reshape((frame.height, frame.width, frame.channels))  # 300x400x3 = 360000
 
             if agent_num == 1:
@@ -668,6 +692,7 @@ class ThesisEnvExperiment(gym.Env):
     def get_observation(self, world_state):
         """
         check observations during mission run
+        PARAMETERS: world_state
         RETURN: number of missed observations - if there are any
         """
         if world_state.number_of_observations_since_last_state > 0:
@@ -706,7 +731,7 @@ class ThesisEnvExperiment(gym.Env):
 
     def append_save_file_with_agents_fail(self):
         """
-        saves the failes in results.txt
+        saves the explicit agent-failes in results.txt
         """
         datei = open('results.txt', 'a')
         datei.write("X the mission failed: the agents ran into each other or got stranded in the field X.\n")
@@ -734,7 +759,7 @@ class ThesisEnvExperiment(gym.Env):
 
     def get_cell_agents(self):
         """
-        gets the cell coordinates for the agents to compare with every 20 seconds
+        gets the cell coordinates for the agents to compare with
         """
         world_state1 = world_state2 = world_state3 = world_state4 = 0
         while world_state1 == 0 or world_state2 == 0 or world_state3 == 0 or world_state4 == 0:
@@ -766,9 +791,10 @@ class ThesisEnvExperiment(gym.Env):
     def get_current_cell_agents(self):
         """
         gets the cell coordinates for the agents at a state
+        same as get_cell_agents ---> redundant, need to clear this
         """
-        world_state1 = world_state1 = world_state3 = world_state4 = 0
-        while world_state1 == 0 or world_state1 == 0 or world_state3 == 0 or world_state4 == 0:
+        world_state1 = world_state2 = world_state3 = world_state4 = 0
+        while world_state1 == 0 or world_state2 == 0 or world_state3 == 0 or world_state4 == 0:
             world_state1 = self.agent_host1.peekWorldState()
             world_state2 = self.agent_host2.peekWorldState()
             world_state3 = self.agent_host3.peekWorldState()
@@ -794,6 +820,9 @@ class ThesisEnvExperiment(gym.Env):
                     print("current cell coyote: ", self.cell_now_coyote)
 
     def get_world_state_ob(self, agent_num):
+        """
+        get current world_state of called agent
+        """
         world_state = 0
         while world_state == 0:
 
@@ -811,12 +840,33 @@ class ThesisEnvExperiment(gym.Env):
                 ob = json.loads(msg)
                 return ob
 
-    def get_position_in_arena(self, world_state, time_step):
+    def renew_world_state(self, agent_num):
+        """
+        if the world_state failes and there are no observations,
+        just get a new one here
+        """
+        world_state = 0
+
+        if agent_num == 1:
+            world_state = self.agent_host1.peekWorldState()
+        if agent_num == 2:
+            world_state = self.agent_host2.peekWorldState()
+        if agent_num == 3:
+            world_state = self.agent_host3.peekWorldState()
+        if agent_num == 4:
+            world_state = self.agent_host4.peekWorldState()
+
+        print("world_state: ", world_state)
+
+        return world_state
+
+    def get_position_in_arena(self, world_state, time_step, agent_num):
         """
         get (x,y,z) Positioncoordinates of agent
-        fetch the cell coordinates every 20 seconds
-        check with current coordinates -> if they are the same more than 20 seconds, it is nearly safe, that the agents
+        fetch the cell coordinates every 30 seconds
+        check with current coordinates -> if they are the same more than 28 seconds, it is nearly safe, that the agents
         crashed into each other -> declare mission as failed and end it
+        PARAMETERS: world_state, time_step, agent_num
         RETURN: x,y,z
         """
 
@@ -832,8 +882,45 @@ class ThesisEnvExperiment(gym.Env):
                     self.get_cell_agents()
                     self.time_stamp_start_for_distance = time.time()
 
+                if "XPos" in ob and "ZPos" in ob and "YPos" in ob:
+                    x = ob[u'XPos']
+                    y = ob[u'YPos']
+                    z = ob[u'ZPos']
+
                 seconds = time_now - self.time_stamp_start_for_distance
-                # print("seconds: ", int(seconds))
+                print("seconds: ", int(seconds))
+                """if int(seconds) == 15:
+                    # WIP
+                    if self.fetched_cell_tom == self.cell_now_tom and agent_num == 1:
+                        teleport_x = 9.5
+                        teleport_z = 0.5
+                        tp_command = "tp " + str(teleport_x) + " 4 " + str(teleport_z)
+                        self.agent_host1.sendCommand(tp_command)
+                        print("teleported Tom")
+
+                    if self.fetched_cell_jerry == self.cell_now_jerry and agent_num == 2:
+                        teleport_x = 6.5
+                        teleport_z = 15.5
+                        tp_command = "tp " + str(teleport_x) + " 4 " + str(teleport_z)
+                        self.agent_host2.sendCommand(tp_command)
+                        print("teleported Jerry")
+
+                    if self.fetched_cell_roadrunner == self.cell_now_roadrunner and agent_num == 3:
+                        teleport_x = 15.5
+                        teleport_z = 6.5
+
+                        tp_command = "tp " + str(teleport_x) + " 4 " + str(teleport_z)
+                        self.agent_host3.sendCommand(tp_command)
+                        print("teleported Roadrunner")
+
+                    if self.fetched_cell_coyote == self.cell_now_coyote and agent_num == 4:
+                        teleport_x = 0.5
+                        teleport_z = 9.5
+
+                        tp_command = "tp " + str(teleport_x) + " 4 " + str(teleport_z)
+                        self.agent_host4.sendCommand(tp_command)
+                        print("teleported Coyote")"""
+
                 if int(seconds) == 28:
                     self.get_current_cell_agents()
                     if self.fetched_cell_tom == self.cell_now_tom and self.fetched_cell_jerry == self.cell_now_jerry \
@@ -846,10 +933,6 @@ class ThesisEnvExperiment(gym.Env):
                         self.append_save_file_with_agents_fail()
                         self.mission_end = True
 
-                if "XPos" in ob and "ZPos" in ob and "YPos" in ob:
-                    x = ob[u'XPos']
-                    y = ob[u'YPos']
-                    z = ob[u'ZPos']
                 return x, y, z
             else:
                 if t == 10:
@@ -860,77 +943,131 @@ class ThesisEnvExperiment(gym.Env):
                 else:
                     time.sleep(1)
                     t += 1
+                    world_state = self.renew_world_state(agent_num)
                     print(t)
 
-    def distance(self, time_step):
+    def movenorth1_function(self, x, z):
+        """ calculates the new x and z values after the agent moved one step north """
+        x_ziel = x
+        if z == 0 or z == 2 and 14 <= x <= 15:
+            z_ziel = z
+        else:
+            z_ziel = z - 1
+        return x_ziel, z_ziel
+
+    def movesouth1_function(self, x, z):
+        """ calculates the new x and z values after the agent moved one step south """
+        x_ziel = x
+        if z == 15 or z == 13 and 0 <= x <= 1:
+            z_ziel = z
+        else:
+            z_ziel = z + 1
+        return x_ziel, z_ziel
+
+    def moveeast1_function(self, x, z):
+        """ calculates the new x and z values after the agent moved one step east """
+        if x == 15 or x == 13 and 0 <= z <= 1:
+            x_ziel = x
+        else:
+            x_ziel = x + 1
+        z_ziel = z
+        return x_ziel, z_ziel
+
+    def movewest1_function(self, x, z):
+        """ calculates the new x and z values after the agent moved one step west """
+        if x == 0 or x == 2 and 14 <= z <= 15:
+            x_ziel = x
+        else:
+            x_ziel = x - 1
+        z_ziel = z
+        return x_ziel, z_ziel
+
+    def get_new_position(self, action, x, z):
+        """ calculates the new position of the agent """
+
+        for spc, cmds in zip(self.action_spaces, self.action_names):
+            if isinstance(spc, spaces.Discrete):
+                action_name = cmds[action]
+
+        if action_name == "movenorth 1":
+            x_new, z_new = self.movenorth1_function(x, z)
+        elif action_name == "movesouth 1":
+            x_new, z_new = self.movesouth1_function(x, z)
+        elif action_name == "moveeast 1":
+            x_new, z_new = self.moveeast1_function(x, z)
+        elif action_name == "movewest 1":
+            x_new, z_new = self.movewest1_function(x, z)
+        else:
+            x_new = x
+            z_new = z
+
+        return x_new, z_new
+
+    def approve_distance(self, tom, jerry, roadrunner, coyote, obs1, obs2, obs3, obs4, r1, r2, r3, r4,
+                         action1, action2, action3, action4, time_step):
         """
         check if agents are to near to eachother
-        move apart if so
+        if so, the next actions are calculated new
         """
+        steps_approved = needed_new_calculation = False
+        world_state1 = world_state2 = world_state3 = world_state4 = 0
 
-        x1 = y1 = z1 = x2 = y2 = z2 = x3 = y3 = z3 = x4 = y4 = z4 = 0
-
-        """ checks, if world_state is read corrctly, if not, trys again"""
-        while (y1 == 0) or (y2 == 0) or (y3 == 0) or (y4 == 0):
+        """ checks, if world_state is read correctly, if not, trys again"""
+        while (world_state1 == 0) or (world_state2 == 0) or (world_state3 == 0) or (world_state4 == 0):
             world_state1 = self.agent_host1.peekWorldState()
             world_state2 = self.agent_host2.peekWorldState()
             world_state3 = self.agent_host3.peekWorldState()
             world_state4 = self.agent_host4.peekWorldState()
+            print("..")
 
-            x1, y1, z1 = self.get_position_in_arena(world_state1, time_step)
-            x2, y2, z2 = self.get_position_in_arena(world_state2, time_step)
-            x3, y3, z3 = self.get_position_in_arena(world_state3, time_step)
-            x4, y4, z4 = self.get_position_in_arena(world_state4, time_step)
-            print("...")
+        x1, y1, z1 = self.get_position_in_arena(world_state1, time_step, 1)
+        x2, y2, z2 = self.get_position_in_arena(world_state2, time_step, 2)
+        x3, y3, z3 = self.get_position_in_arena(world_state3, time_step, 3)
+        x4, y4, z4 = self.get_position_in_arena(world_state4, time_step, 4)
 
-        # print("  \tTom \tJerry \nX: \t %i\t %i \nY: \t %i\t %i \nZ: \t %i\t %i" % (x1, x2, y1, y2, z1, z2))
+        time.sleep(0.1)
+        while not steps_approved:
+            """new position for agent tom"""
+            x1_new, z1_new = self.get_new_position(action1, x1, z1)
 
-        """(x2 == x1+2 and z1 == z1+2) or (x2 == x1+1 and z2 == z1+2) or (x2 == x1 and z2 == z1+2) or \
-        (x2 == x1-1 and z2 == z1+2) or (x2 == x1-2 and z2 == z1+2) or (x1 == x2+2 and z1 == z2-2) or \
-        (x1 == x2+1 and z1 == z2-2) or (x1 == x2 and z1 == z2-2) or (x1 == x2-1 and z1 == z2-2) or \
-        (x1 == x2-2 and z1 == z2-2) or """
-        # genaues druchdenken bei 4 agents
-        if (x1 == x2 and z1 == z2) or (x2 == x1 + 1 and z2 == z1 + 1) or (x2 == x1 and z2 == z1 + 1) or \
-                (x2 == x1 - 1 and z2 == z1 + 1) or (x1 == x2 + 1 and z1 == z2 - 1) or (x1 == x2 and z1 == z2 - 1) or \
-                (x1 == x2 - 1 and z1 == z2 - 1):
-            print("---------------------------------------------------- stop!! agents too close!")
-            self.too_close_counter += 1
-            self.agent_host1.sendCommand("movenorth 1")
-            self.agent_host2.sendCommand("movesouth 1")
+            """new position for agent jerry"""
+            x2_new, z2_new = self.get_new_position(action2, x2, z2)
 
-        """(x2 == x1 + 2 and z2 == z1 + 1) or (x2 == x1 + 2 and z2 == z1) or (x2 == x1 + 2 and z2 == z1 - 1) or
-        (x1 == x2-2 and z1 == z2+1) or (x1 == x2-2 and z1 == z2) or 
-        (x1 == x2-2 and z1 == z2-1) or """
+            """new position for agent roadrunner"""
+            x3_new, z3_new = self.get_new_position(action3, x3, z3)
 
-        if (x2 == x1 + 1 and z2 == z1) or (x1 == x2 - 1 and z1 == z2):
-            print("---------------------------------------------------- stop!! agents too close!")
-            self.too_close_counter += 1
-            self.agent_host1.sendCommand("movewest 1")
-            self.agent_host2.sendCommand("moveeast 1")
+            """new position for agent coyote"""
+            x4_new, z4_new = self.get_new_position(action4, x4, z4)
 
-        """(x2 == x1 - 2 and z2 == z1 + 1) or (x2 == x1 - 2 and z2 == z1) or (x2 == x1 - 2 and z2 == z1 - 1) or
-        (x1 == x2+2 and z1 == z2+1) or (x1 == x2+2 and z1 == z2) or \
-        (x1 == x2+2 and z1 == z2-1) or """
+            """checks, if the agents would run into each other if they took the step"""
+            # WIP !!!
+            time.sleep(0.5)
+            if int(x1_new) == int(x2_new) and int(z1_new) == int(z2_new) or int(x1_new) == int(x3_new) \
+                    and int(z1_new) == int(z3_new) or \
+                    int(x1_new) == int(x4_new) and int(z1_new) == int(z4_new) or int(x2_new) == int(x3_new) \
+                    and int(z2_new) == int(z3_new) or \
+                    int(x2_new) == int(x4_new) and int(z2_new) == int(z4_new) or int(x3_new) == int(x4_new) \
+                    and int(z3_new) == int(z4_new):
 
-        if (x2 == x1 - 1 and z2 == z1) or (x1 == x2 + 1 and z1 == z2):
-            print("---------------------------------------------------- stop!! agents too close!")
-            self.too_close_counter += 1
-            self.agent_host1.sendCommand("moveeast 1")
-            self.agent_host2.sendCommand("movewest 1")
+                needed_new_calculation = True
+                action1 = tom.act_and_train(obs1, r1)
+                action2 = jerry.act_and_train(obs2, r2)
+                action3 = roadrunner.act_and_train(obs3, r3)
+                action4 = coyote.act_and_train(obs4, r4)
+                time.sleep(0.5)
+            else:
+                steps_approved = True
+                if needed_new_calculation:
+                    self.too_close_counter += 1
 
-        """(x2 == x1 + 2 and z1 == z1 - 2) or (x2 == x1 + 1 and z2 == z1 - 2) or (x2 == x1 and z2 == z1 - 2) or \
-        (x2 == x1 - 1 and z2 == z1 - 2) or (x2 == x1 - 2 and z2 == z1 - 2) or (x1 == x2+2 and z1 == z2+2) or \
-        (x1 == x2+1 and z1 == z2+2) or (x1 == x2 and z1 == z2+2) or (x1 == x2-1 and z1 == z2+2) or \
-        (x1 == x2-2 and z1 == z2+2) or """
+        print("calculated actions: %s, %s, %s, %s" % (action1, action2, action3, action4))
+        return action1, action2, action3, action4
 
-        if (x2 == x1 + 1 and z2 == z1 - 1) or (x2 == x1 and z2 == z1 - 1) or (x2 == x1 - 1 and z2 == z1 - 1) or \
-                (x1 == x2 + 1 and z1 == z2 + 1) or (x1 == x2 and z1 == z2 + 1) or (x1 == x2 - 1 and z1 == z2 + 1):
-            print("---------------------------------------------------- stop!! agents too close!")
-            self.too_close_counter += 1
-            self.agent_host1.sendCommand("movesouth 1")
-            self.agent_host2.sendCommand("movennorth 1")
-
-    def winner_bahaviour(self, agent_host, time_step, name):
+    def winner_behaviour(self, agent_host, time_step, name):
+        """
+        hardcoded winner-behaviour to end the mission:
+        look down, place flag, look up again and jump on flag
+        """
         agent_host.sendCommand("chat I won the game!")
         self.append_save_file_with_finish(time_step, name)
         self.time_step_tom_won = time_step
@@ -940,9 +1077,9 @@ class ThesisEnvExperiment(gym.Env):
         time.sleep(0.2)
         agent_host.sendCommand("use 1")
         time.sleep(0.2)
-        agent_host.sendCommand("jumpmove 1")
-        time.sleep(0.2)
         agent_host.sendCommand("look -1")
+        time.sleep(0.2)
+        agent_host.sendCommand("jumpmove 1")
 
     def check_inventory(self, time_step):
         """
@@ -973,10 +1110,10 @@ class ThesisEnvExperiment(gym.Env):
 
             """ checks, if position is calculated correctly, if not, trys again """
             while (y1 == 0) or (y2 == 0) or (y3 == 0) or (y4 == 0):
-                x1, y1, z1 = self.get_position_in_arena(world_state1, time_step)
-                x2, y2, z2 = self.get_position_in_arena(world_state2, time_step)
-                x3, y3, z3 = self.get_position_in_arena(world_state3, time_step)
-                x4, y4, z4 = self.get_position_in_arena(world_state4, time_step)
+                x1, y1, z1 = self.get_position_in_arena(world_state1, time_step, 1)
+                x2, y2, z2 = self.get_position_in_arena(world_state2, time_step, 2)
+                x3, y3, z3 = self.get_position_in_arena(world_state3, time_step, 3)
+                x4, y4, z4 = self.get_position_in_arena(world_state4, time_step, 4)
                 print("..")
 
             """ fetch the current cells """
@@ -989,9 +1126,9 @@ class ThesisEnvExperiment(gym.Env):
                 look down, set block, jump on it to reach wanted position and win the game 
                 """
                 if self.flag_captured_tom:
-                    self.winner_bahaviour(self.agent_host1, time_step, name="Tom")
+                    self.winner_behaviour(self.agent_host1, time_step, name="Tom")
                 if self.flag_captured_roadrunner:
-                    self.winner_bahaviour(self.agent_host3, time_step, name="Roadrunner")
+                    self.winner_behaviour(self.agent_host3, time_step, name="Roadrunner")
 
                 self.mission_end = True
             else:
@@ -1003,18 +1140,22 @@ class ThesisEnvExperiment(gym.Env):
                     inventory_string_tom = json.dumps(last_inventory_tom)
                     inventory_string_roadrunner = json.dumps(last_inventory_roadrunner)
                     if inventory_string_tom.find('quartz') != -1:
-                        """ tauscht quartz mit log, sodass quartz zurück gelegt werden kann"""
+                        """ swaps quartz with log, to place back quartz """
                         if json.dumps(last_inventory_tom[1]).find('quartz') != -1:
                             self.agent_host1.sendCommand("swapInventoryItems 0 1")
-                        self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
+                        #self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
+                        time.sleep(0.1)
                         self.agent_host1.sendCommand("use")
+                        time.sleep(0.1)
                         self.agent_host1.sendCommand("swapInventoryItems 0 1")
                     if inventory_string_roadrunner.find('quartz') != -1:
-                        """ tauscht quartz mit log, sodass quartz zurück gelegt werden kann"""
+                        """ swaps quartz with log, to place back quartz """
                         if json.dumps(last_inventory_roadrunner[1]).find('quartz') != -1:
                             self.agent_host3.sendCommand("swapInventoryItems 0 1")
-                        self.agent_host3.sendCommand("chat Wrong flag, I'll put it back!")
+                        #self.agent_host3.sendCommand("chat Wrong flag, I'll put it back!")
+                        time.sleep(0.1)
                         self.agent_host3.sendCommand("use")
+                        time.sleep(0.1)
                         self.agent_host3.sendCommand("swapInventoryItems 0 1")
                     if inventory_string_tom.find('log') != -1:
                         self.flag_captured_tom = True
@@ -1034,13 +1175,13 @@ class ThesisEnvExperiment(gym.Env):
             if (self.flag_captured_jerry and (0 <= x2 <= 4 and 10 <= z2 <= 15)) or \
                     (self.flag_captured_coyote and (0 <= x4 <= 4 and 10 <= z4 <= 15)):
                 """ 
-                    if agent reached the target area:
-                    look down, set block, jump on it to reach wanted position and win the game 
-                    """
+                if agent reached the target area:
+                look down, set block, jump on it to reach wanted position and win the game 
+                """
                 if self.flag_captured_jerry:
-                    self.winner_bahaviour(self.agent_host2, time_step, name="Jerry")
+                    self.winner_behaviour(self.agent_host2, time_step, name="Jerry")
                 if self.flag_captured_coyote:
-                    self.winner_bahaviour(self.agent_host3, time_step, name="Coyote")
+                    self.winner_behaviour(self.agent_host3, time_step, name="Coyote")
 
                 self.mission_end = True
             else:
@@ -1048,22 +1189,26 @@ class ThesisEnvExperiment(gym.Env):
                     print("[INFO] Team Jerry and Coyote holds the flag.")
                 else:
                     last_inventory_jerry = obs2[u'inventory']
-                    last_inventory_coyote = obs2[u'inventory']
+                    last_inventory_coyote = obs4[u'inventory']
                     inventory_string_jerry = json.dumps(last_inventory_jerry)
                     inventory_string_coyote = json.dumps(last_inventory_coyote)
                     if inventory_string_jerry.find('log') != -1:
-                        """ tauscht quartz mit log, sodass log zurück gelegt werden kann"""
+                        """ swaps quartz with log, to place back log """
                         if json.dumps(last_inventory_jerry[1]).find('log') != -1:
                             self.agent_host2.sendCommand("swapInventoryItems 0 1")
-                        self.agent_host2.sendCommand("chat Wrong flag, I'll put it back!")
+                        #self.agent_host2.sendCommand("chat Wrong flag, I'll put it back!")
+                        time.sleep(0.1)
                         self.agent_host2.sendCommand("use")
+                        time.sleep(0.1)
                         self.agent_host2.sendCommand("swapInventoryItems 0 1")
                     if inventory_string_coyote.find('log') != -1:
-                        """ tauscht quartz mit log, sodass log zurück gelegt werden kann"""
+                        """ swaps quartz with log, to place back log """
                         if json.dumps(last_inventory_coyote[1]).find('log') != -1:
                             self.agent_host4.sendCommand("swapInventoryItems 0 1")
-                        self.agent_host4.sendCommand("chat Wrong flag, I'll put it back!")
+                        #self.agent_host4.sendCommand("chat Wrong flag, I'll put it back!")
+                        time.sleep(0.1)
                         self.agent_host4.sendCommand("use")
+                        time.sleep(0.1)
                         self.agent_host4.sendCommand("swapInventoryItems 0 1")
                     if inventory_string_jerry.find('quartz') != -1:
                         self.flag_captured_jerry = True
@@ -1081,9 +1226,9 @@ class ThesisEnvExperiment(gym.Env):
                                 time_step))
 
     def sending_mission_quit_commands(self, overall_reward_agent_Tom, overall_reward_agent_Jerry,
-                                      overall_reward_agent_roadrunner, overall_reward_agent_coyote,time_step, obs1, r1,
-                                      obs2, r2, obs3, r3, obs4, r4, outdir, t, tom, jerry, roadrunner, coyote,
-                                      experiment_ID):
+                                      overall_reward_agent_roadrunner, overall_reward_agent_coyote,
+                                      time_step, obs1, r1, obs2, r2, obs3, r3, obs4, r4, outdir, t,
+                                      tom, jerry, roadrunner, coyote, experiment_ID):
 
         """ send the MissionQuit Command to tell the Mod we finished """
         self.agent_host0.sendCommand("quit")
@@ -1091,7 +1236,6 @@ class ThesisEnvExperiment(gym.Env):
         self.agent_host2.sendCommand("quit")
         self.agent_host3.sendCommand("quit")
         self.agent_host4.sendCommand("quit")
-
 
         """ save-path for the evaluation-plot """
         dirname = os.path.join(outdir, 'plots')
@@ -1137,7 +1281,9 @@ class ThesisEnvExperiment(gym.Env):
         overall_reward_agent_Jerry = overall_reward_agent_Tom = 0
         overall_reward_agent_roadrunner = overall_reward_agent_coyote = 0
         self.save_new_round(t)
+
         obs1, obs2, obs3, obs4 = self.reset_world(experiment_ID)
+
         self.too_close_counter = 0
         self.winner_agent = "-"
         self.time_step_tom_won = self.time_step_jerry_won = None
@@ -1198,20 +1344,18 @@ class ThesisEnvExperiment(gym.Env):
         t: number of episode
         time_step: duration of the episode
         too_close_counter: how often agents came too close
-        overall_reward_agent_Tom, overall_reward_agent_Jerry: reward of the agents
+        overall_reward_agent_<name>: reward of the agents
         winner_agent: agent's name who won the episode, if there is no "-"
-        time_step_tom_won: timestep, Tom won the game, if not: 0
-        time_step_jerry_won: timestep, Jerry won the game, if not: 0
-        time_step_tom_captured_the_flag : timestep, Tom captured the flag, if not: 0
-        time_step_jerry_captured_the_flag : timestep, Jerry captured the flag, if not: 0
+        time_step_<name>_won: timestep, <agent_name> won the game, if not: 0
+        time_step_<name>_captured_the_flag : timestep, <agent_name> captured the flag, if not: 0
         time_step_agents_ran_into_each_other: timestep; the agents ran into each other and the mission ends
-
+        steps_<name>: steps per agent
         """
 
         if self.episode_counter > 0:
             """ Episode 0 is skipped, because there just starts the initialisation of the world, they do nothing. """
             self.evaluation_agents_ran_into_each_other.append(self.time_step_agents_ran_into_each_other)
-            print(self.time_step_agents_ran_into_each_other)
+            print("Time, agents crashed: ", self.time_step_agents_ran_into_each_other)
 
             if self.time_step_agents_ran_into_each_other is None:
                 """ save data of valid episodes for the evaluation graph """

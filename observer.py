@@ -12,8 +12,16 @@ from chainerrl.replay_buffer import batch_experiences
 from chainerrl.replay_buffer import batch_recurrent_experiences
 from chainerrl.replay_buffer import ReplayUpdater
 
+""" 
+Observer Agent 
 
-class OBSERVER():
+standing above the arena on an ice block, looking down, just here for the human user to observe the episode top down
+actions: -
+
+"""
+
+
+class OBSERVER:
 
     def __init__(self):
         pass

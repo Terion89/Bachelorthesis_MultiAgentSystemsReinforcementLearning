@@ -228,8 +228,8 @@ if __name__ == '__main__':
                            )
     """
     """ 
-    int r1/r2:                      initialisation of the reward per agent, starts at 0
-    bool done_team01/done_team02:   mission is running as long as 'done'-flag is true 
+    int r<>:                        initialisation of the reward per agent, starts at 0
+    bool done<>:                    mission is running as long as 'done'-flag is false 
     int t:                          current step of episode, starts at 0
     int max_episode_len:            None, set at another point
     float time_step_start:          start time of the episode, to track length for timeout
@@ -237,7 +237,7 @@ if __name__ == '__main__':
     """
 
     r1 = r2 = r3 = r4 = 0
-    done_team01 = done_team02 = False
+    done1 = done2 = done3 = done4 = done_team01 = done_team02 = False
 
     t = step_offset
 
@@ -250,7 +250,7 @@ if __name__ == '__main__':
     max_episode_len = None
 
     time_stamp_start = time.time()
-    print("actual time: ", time_stamp_start)
+    print("current time: ", time_stamp_start)
 
     experiment_ID = ""
 
@@ -266,8 +266,8 @@ if __name__ == '__main__':
             while not done_team01 and not done_team02:
 
                 """ current time to calculate the elapsed time """
-                time_stamp_actual = time.time()
-                time_step = time_stamp_actual - time_stamp_start
+                time_stamp_current = time.time()
+                time_step = time_stamp_current - time_stamp_start
                 print("mission time up: %i sec" % (time_step))
 
 
@@ -276,18 +276,53 @@ if __name__ == '__main__':
                 action2 = jerry.act_and_train(obs2, r2)
                 action3 = roadrunner.act_and_train(obs3, r3)
                 action4 = coyote.act_and_train(obs4, r4)
-                #time.sleep(1)
+                # time.sleep(1)
+
                 """ check if agents would run into each other when they do the calculated step """
                 action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2,
                                                                           obs3, obs4, r1, r2, r3, r4, action1, action2,
                                                                           action3, action4, time_step)
-                #time.sleep(1)
-                """ do calculated steps and pass information of the time_step """
-                obs1, r1, done1, info1 = env.step_generating(action1, 1)
-                obs2, r2, done2, info2 = env.step_generating(action2, 2)
-                obs3, r3, done3, info3 = env.step_generating(action3, 3)
-                obs4, r4, done4, info4 = env.step_generating(action4, 4)
-                #time.sleep(1)
+                # time.sleep(1)
+                """ do calculated steps, check if they were executed and pass information of the time_step """
+                while not env.command_executed_tom:
+                    world_state1 = 0
+                    """ checks, if world_state is read correctly, if not, trys again"""
+                    while world_state1 == 0:
+                        world_state1 = env.agent_host1.peekWorldState()
+                        print(".")
+                    env.x1_prev, y1, env.z1_prev = env.get_position_in_arena(world_state1, time_step, 1)
+                    obs1, r1, done1, info1 = env.step_generating(action1, 1)
+                    env.command_executed_tom = env.check_if_command_was_executed(1, time_step)
+
+                while not env.command_executed_jerry:
+                    world_state2 = 0
+                    """ checks, if world_state is read correctly, if not, trys again"""
+                    while world_state2 == 0:
+                        world_state2 = env.agent_host2.peekWorldState()
+                        print(".")
+                    env.x2_prev, y2, env.z2_prev = env.get_position_in_arena(world_state2, time_step, 2)
+                    obs2, r2, done2, info2 = env.step_generating(action2, 2)
+                    env.command_executed_jerry = env.check_if_command_was_executed(2, time_step)
+
+                while not env.command_executed_roadrunner:
+                    world_state3 = 0
+                    """ checks, if world_state is read correctly, if not, trys again"""
+                    while world_state3 == 0:
+                        world_state3 = env.agent_host3.peekWorldState()
+                        print(".")
+                    env.x3_prev, y3, env.z3_prev = env.get_position_in_arena(world_state3, time_step, 3)
+                    obs3, r3, done3, info3 = env.step_generating(action3, 3)
+                    env.command_executed_roadrunner = env.check_if_command_was_executed(3, time_step)
+
+                while not env.command_executed_coyote:
+                    world_state4 = 0
+                    """ checks, if world_state is read correctly, if not, trys again"""
+                    while world_state4 == 0:
+                        world_state4 = env.agent_host1.peekWorldState()
+                        print(".")
+                    env.x4_prev, y4, env.z4_prev = env.get_position_in_arena(world_state4, time_step, 4)
+                    obs4, r4, done4, info4 = env.step_generating(action4, 4)
+                    env.command_executed_coyote = env.check_if_command_was_executed(4, time_step)
 
                 if done1 or done3:
                     done_team01 = True
@@ -315,6 +350,10 @@ if __name__ == '__main__':
                 env.check_inventory(time_step)
 
                 print("--------------------------------------------------------------------")
+
+                """ reset the command_executed flags for the next step """
+                env.command_executed_tom = env.command_executed_jerry = False
+                env.command_executed_roadrunner = env.command_executed_coyote = False
 
                 """ end mission when one agent finishes, the agents crash or the time is over, start over again """
                 if env.mission_end or done_team01 or done_team02 or (time_step > 1920):  # 960 = 16 min | 1920 = 32 min

@@ -1,4 +1,4 @@
-# Swarmintelligence in Multi-Agent-Systems with Reinforcement Learning in Minecraft
+# Schwarmintelligenz in Multi-Agenten-Systemen mit Reinforcement Learning in Minecraft
 
 relevant data
 

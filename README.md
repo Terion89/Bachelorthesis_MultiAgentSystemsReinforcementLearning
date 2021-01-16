@@ -1,4 +1,4 @@
-# Bachelorthesis_MultiAgentSystemsReinforcementLearning
+# Swarmintelligence in Multi-Agent-Systems with Reinforcement Learning in Minecraft
 
 relevant data
 

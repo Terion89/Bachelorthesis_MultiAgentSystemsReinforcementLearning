@@ -924,13 +924,23 @@ class ThesisEnvExperiment(gym.Env):
 
     def movenorth1_function(self, x, z):
         """ calculates the new x and z values after the agent moved one step north """
-        x_ziel = int(x)
+        x = int(x)
         z = int(z)
+        x_ziel = x
+
         if (z == 2 and 15 <= x <= 16) or z == 0:
             z_ziel = z
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         else:
             z_ziel = z - 1
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         #else:
         #    print(" ----------------- something went wrong with moving north! ----------------- ")
@@ -938,13 +948,23 @@ class ThesisEnvExperiment(gym.Env):
 
     def movesouth1_function(self, x, z):
         """ calculates the new x and z values after the agent moved one step south """
-        x_ziel = int(x)
+        x = int(x)
         z = int(z)
+        x_ziel = x
+
         if (z == 13 and 0 <= x <= 2) or z == 15:
             z_ziel = z
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         else:
             z_ziel = z + 1
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         #else:
         #    print(" ----------------- something went wrong with moving south! ----------------- ")
@@ -952,13 +972,23 @@ class ThesisEnvExperiment(gym.Env):
 
     def moveeast1_function(self, x, z):
         """ calculates the new x and z values after the agent moved one step east """
-        z_ziel = int(z)
         x = int(x)
+        z = int(z)
+        z_ziel = z
+
         if (x == 13 and 0 <= z <= 1) or x == 15:
             x_ziel = x
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         else:
             x_ziel = x + 1
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         #else:
         #    print(" ----------------- something went wrong with moving east! ----------------- ")
@@ -966,13 +996,23 @@ class ThesisEnvExperiment(gym.Env):
 
     def movewest1_function(self, x, z):
         """ calculates the new x and z values after the agent moved one step west """
-        z_ziel = int(z)
         x = int(x)
+        z = int(z)
+        z_ziel = z
+
         if (x == 2 and 14 <= z <= 15) or x == 0:
             x_ziel = x
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         else:
             x_ziel = x - 1
+            print("x: ", x)
+            print("z: ", z)
+            print("x_ziel: ", x_ziel)
+            print("z_ziel: ", z_ziel)
             return x_ziel, z_ziel
         #else:
         #    print(" ----------------- something went wrong with moving west! ----------------- ")

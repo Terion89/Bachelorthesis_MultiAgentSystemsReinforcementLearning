@@ -3,36 +3,23 @@ import logging
 import logger as logger
 import time
 
-import gym
-import json
-from thesis.CDF_swarm_intelligence.thesis_env_swarm_intelligence import ThesisEnvExperiment
-import datetime as dt
-from malmo import MalmoPython
-import random
-from malmopy.agent.agent import ReplayMemory
+from build.install.Python_Examples.chainer_dqn import DQN
+from build.install.Python_Examples.thesis_env_swarm_intelligence import ThesisEnvExperiment
 import argparse
 import os
 import sys
-from chainer import optimizers
-import gym
 from gym import spaces
-import numpy as np
 import chainerrl
-from thesis.chainer_dqn import DQN
-from thesis.observer import OBSERVER
-from thesis.chainerrl import experiments
-from thesis.chainerrl import explorers
-from thesis.chainerrl import links
-from thesis.chainerrl import misc
-from thesis.chainerrl import q_functions
-from thesis.chainerrl import replay_buffer
-from thesis.chainerrl.experiments.evaluator import Evaluator
-from thesis.chainerrl.experiments.evaluator import save_agent
+
+from observer import OBSERVER
+from thesis.chainerrl.chainerrl import experiments
+from thesis.chainerrl.chainerrl import misc
+from thesis.chainerrl.chainerrl.experiments.evaluator import save_agent
 
 if sys.version_info[0] == 2:
-    import Tkinter as tk
+    pass
 else:
-    import tkinter as tk
+    pass
 
 if __name__ == '__main__':
 
@@ -84,14 +71,14 @@ if __name__ == '__main__':
     parser.add_argument('--reward-scale-factor', type=float, default=1e-3)
     args = parser.parse_args()
 
-    misc.set_random_seed(args.seed, gpus=(args.gpu,))
+    #misc.set_random_seed(args.seed, gpus=(args.gpu,))
     args.outdir = experiments.prepare_output_dir(
         args, args.outdir, argv=sys.argv)
     print('Output files are saved in {}'.format(args.outdir))
 
     """ initialize clientpool and environment """
     client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002), ('127.0.0.1', 10003),
-                   ('127.0.0.1', 10004)]
+                   ('127.0.0.1', 10004), ('127.0.0.1', 10005)]
     env.init(start_minecraft=False, client_pool=client_pool)
 
     """ WIP: need to skip that """
@@ -118,6 +105,7 @@ if __name__ == '__main__':
     obs_space = env.observation_space
     obs_size = obs_space.low.size
     action_space = env.action_space
+    print("action_space: ", action_space)
 
     """ calculate everything to start the mission """
     q_func, opt, rbuf, explorer = env.dqn_q_values_and_neuronal_net(args, action_space, obs_size, obs_space)
@@ -130,15 +118,9 @@ if __name__ == '__main__':
     coyote:         player, mode = survival
     skye:           observer, mode = creative 
     """
-    tom = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
-              explorer=explorer, replay_start_size=args.replay_start_size,
-              target_update_interval=args.target_update_interval,
-              update_interval=args.update_interval,
-              minibatch_size=args.minibatch_size,
-              target_update_method=args.target_update_method,
-              soft_update_tau=args.soft_update_tau,
-              )
-    jerry = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
+    skye = OBSERVER()
+
+    jerry = DQN(q_func, opt, rbuf, gpu=None, gamma=args.gamma,
                 explorer=explorer, replay_start_size=args.replay_start_size,
                 target_update_interval=args.target_update_interval,
                 update_interval=args.update_interval,
@@ -146,7 +128,7 @@ if __name__ == '__main__':
                 target_update_method=args.target_update_method,
                 soft_update_tau=args.soft_update_tau,
                 )
-    roadrunner = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
+    roadrunner = DQN(q_func, opt, rbuf, gpu=None, gamma=args.gamma,
                      explorer=explorer, replay_start_size=args.replay_start_size,
                      target_update_interval=args.target_update_interval,
                      update_interval=args.update_interval,
@@ -154,7 +136,7 @@ if __name__ == '__main__':
                      target_update_method=args.target_update_method,
                      soft_update_tau=args.soft_update_tau,
                      )
-    coyote = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
+    coyote = DQN(q_func, opt, rbuf, gpu=None, gamma=args.gamma,
                  explorer=explorer, replay_start_size=args.replay_start_size,
                  target_update_interval=args.target_update_interval,
                  update_interval=args.update_interval,
@@ -162,7 +144,14 @@ if __name__ == '__main__':
                  target_update_method=args.target_update_method,
                  soft_update_tau=args.soft_update_tau,
                  )
-    skye = OBSERVER()
+    tom = DQN(q_func, opt, rbuf, gpu=None, gamma=args.gamma,
+              explorer=explorer, replay_start_size=args.replay_start_size,
+              target_update_interval=args.target_update_interval,
+              update_interval=args.update_interval,
+              minibatch_size=args.minibatch_size,
+              target_update_method=args.target_update_method,
+              soft_update_tau=args.soft_update_tau,
+              )
 
     if args.load:
         tom.load(args.load)
@@ -285,41 +274,45 @@ if __name__ == '__main__':
                 # time.sleep(1)
                 """ do calculated steps, check if they were executed and pass information of the time_step """
                 while not env.command_executed_tom:
-                    world_state1 = 0
+                    world_state1 = env.agent_host1.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
-                    while world_state1 == 0:
+                    while world_state1.number_of_observations_since_last_state == 0:
                         world_state1 = env.agent_host1.peekWorldState()
                         print(".")
+                        time.sleep(0.01)
                     env.x1_prev, y1, env.z1_prev = env.get_position_in_arena(world_state1, time_step, 1)
                     obs1, r1, done1, info1 = env.step_generating(action1, 1)
                     env.command_executed_tom = env.check_if_command_was_executed(1, time_step)
 
                 while not env.command_executed_jerry:
-                    world_state2 = 0
+                    world_state2 = env.agent_host2.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
-                    while world_state2 == 0:
+                    while world_state2.number_of_observations_since_last_state == 0:
                         world_state2 = env.agent_host2.peekWorldState()
                         print(".")
+                        time.sleep(0.01)
                     env.x2_prev, y2, env.z2_prev = env.get_position_in_arena(world_state2, time_step, 2)
                     obs2, r2, done2, info2 = env.step_generating(action2, 2)
                     env.command_executed_jerry = env.check_if_command_was_executed(2, time_step)
 
                 while not env.command_executed_roadrunner:
-                    world_state3 = 0
+                    world_state3 = env.agent_host3.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
-                    while world_state3 == 0:
+                    while world_state3.number_of_observations_since_last_state == 0:
                         world_state3 = env.agent_host3.peekWorldState()
                         print(".")
+                        time.sleep(0.01)
                     env.x3_prev, y3, env.z3_prev = env.get_position_in_arena(world_state3, time_step, 3)
                     obs3, r3, done3, info3 = env.step_generating(action3, 3)
                     env.command_executed_roadrunner = env.check_if_command_was_executed(3, time_step)
 
                 while not env.command_executed_coyote:
-                    world_state4 = 0
+                    world_state4 = env.agent_host4.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
-                    while world_state4 == 0:
-                        world_state4 = env.agent_host1.peekWorldState()
+                    while world_state4.number_of_observations_since_last_state == 0:
+                        world_state4 = env.agent_host4.peekWorldState()
                         print(".")
+                        time.sleep(0.01)
                     env.x4_prev, y4, env.z4_prev = env.get_position_in_arena(world_state4, time_step, 4)
                     obs4, r4, done4, info4 = env.step_generating(action4, 4)
                     env.command_executed_coyote = env.check_if_command_was_executed(4, time_step)
@@ -369,7 +362,7 @@ if __name__ == '__main__':
                     time_stamp_start = time.time()
 
                     """ recover """
-                    time.sleep(5)
+                    time.sleep(2)
 
                 if t == 1001:
                     print("Mission-Set finished. Congratulations! Check results and parameters. Start over.")

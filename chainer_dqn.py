@@ -7,18 +7,13 @@ from chainer import cuda
 import chainer.functions as F
 
 import thesis
-from thesis.chainerrl import agent
-from thesis.chainerrl.misc.batch_states import batch_states
-from thesis.chainerrl.misc.copy_param import synchronize_parameters
-from thesis.chainerrl.replay_buffer import batch_experiences
-from thesis.chainerrl.replay_buffer import batch_recurrent_experiences
-from thesis.chainerrl.replay_buffer import ReplayUpdater
+from thesis.chainerrl.chainerrl import agent
+from thesis.chainerrl.chainerrl.misc.batch_states import batch_states
+from thesis.chainerrl.chainerrl.misc.copy_param import synchronize_parameters
+from thesis.chainerrl.chainerrl.replay_buffer import batch_experiences
+from thesis.chainerrl.chainerrl.replay_buffer import batch_recurrent_experiences
+from thesis.chainerrl.chainerrl.replay_buffer import ReplayUpdater
 from thesis.thesis_env_experiment import ThesisEnvExperiment
-
-if sys.version_info[0] == 2:
-    import Tkinter as tk
-else:
-    import tkinter as tk
 
 
 def compute_value_loss(y, t, clip_delta=True, batch_accumulator='mean'):

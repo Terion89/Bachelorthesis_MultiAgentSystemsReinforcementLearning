@@ -52,75 +52,23 @@
     </ServerHandlers>
   </ServerSection>
     <!--
+    5: Skye - agent_host0
     1: Tom - agent_host1
     2: Jerry - agent_host2
     3: Roadrunner - agent_host3
     4: Coyote - agent_host4
-    5: Skye - agent_host5
      -->
-  <AgentSection mode="Survival">
-    <Name>Tom</Name>
+  <AgentSection mode="Creative">
+    <Name>Skye</Name>
     <AgentStart>
-      <Placement x="9.5"  y="46" z="0.5" pitch="0" yaw="0"/>
-      <Inventory>
-          <InventoryItem type="diamond_pickaxe" slot="4"/>
-      </Inventory>
+      <Placement x="7.5" y="60" z="-1.01" pitch="70"/>
     </AgentStart>
     <AgentHandlers>
-      <ChatCommands/>
-      <ObservationFromFullInventory flat="false"/>
-      <DiscreteMovementCommands/>
-      <ObservationFromDiscreteCell/>
-	  <ObservationFromFullStats/>
-      <ObservationFromRay/>
-      <VideoProducer want_depth="false">
+      <MissionQuitCommands quitDescription="quit"/>
+      <VideoProducer>
         <Width>200</Width>
         <Height>150</Height>
       </VideoProducer>
-      <RewardForTouchingBlockType>
-        <Block reward="-40.0" type="emerald_block" behaviour="onceOnly"/>
-        <Block reward="40.0" type="redstone_block" behaviour="onceOnly"/>
-		<Block reward="20.0" type="sandstone" behaviour="onceOnly"/>
-        <Block reward="-10.0" type="iron_ore" behaviour="onceOnly"/>
-        <Block reward="1000.0" type="gold_ore" behaviour="onceOnly"/>
-        <Block reward="1.0" type="cobblestone" behaviour="constant"/>
-        <Block reward="-200.0" type="bedrock" behaviour="constant"/>
-        <Block reward="100000.0" type="log" behaviour="onceOnly"/>
-        <Block reward="-100000.0" type="quartz_block" behaviour="onceOnly"/>
-      </RewardForTouchingBlockType>
-      <RewardForSendingCommand reward="-5" />
-        <RewardForSendingMatchingChatMessage>
-          <ChatMatch description="I won the game!" reward="1000000" regex=""/>
-        </RewardForSendingMatchingChatMessage>
-        <RewardForCollectingItem>
-          <Item reward="-3000" type="bedrock"/>
-          <Item reward="-3000" type="quartz_block"/>
-          <Item reward="100000" type="log"/>
-      </RewardForCollectingItem>
-        <AgentQuitFromReachingPosition>
-          <Marker tolerance="0.5" x="11" y="47" z="0"/>
-          <Marker tolerance="0.5" x="11" y="47" z="1"/>
-          <Marker tolerance="0.5" x="11" y="47" z="2"/>
-          <Marker tolerance="0.5" x="11" y="47" z="3"/>
-          <Marker tolerance="0.5" x="11" y="47" z="4"/>
-          <Marker tolerance="0.5" x="12" y="47" z="0"/>
-          <Marker tolerance="0.5" x="12" y="47" z="1"/>
-          <Marker tolerance="0.5" x="12" y="47" z="2"/>
-          <Marker tolerance="0.5" x="12" y="47" z="3"/>
-          <Marker tolerance="0.5" x="12" y="47" z="4"/>
-          <Marker tolerance="0.5" x="13" y="47" z="1"/>
-          <Marker tolerance="0.5" x="13" y="47" z="1"/>
-          <Marker tolerance="0.5" x="13" y="47" z="2"/>
-          <Marker tolerance="0.5" x="13" y="47" z="3"/>
-          <Marker tolerance="0.5" x="13" y="47" z="4"/>
-          <Marker tolerance="0.5" x="14" y="47" z="2"/>
-          <Marker tolerance="0.5" x="14" y="47" z="3"/>
-          <Marker tolerance="0.5" x="14" y="47" z="4"/>
-          <Marker tolerance="0.5" x="15" y="47" z="2"/>
-          <Marker tolerance="0.5" x="15" y="47" z="3"/>
-          <Marker tolerance="0.5" x="15" y="47" z="4"/>
-      </AgentQuitFromReachingPosition>
-      <MissionQuitCommands quitDescription="quit"/>
     </AgentHandlers>
   </AgentSection>
 
@@ -195,7 +143,7 @@
     <AgentStart>
       <Placement x="15.5"  y="46" z="6.5" pitch="0" yaw="0"/>
       <Inventory>
-          <InventoryItem type="diamond_pickaxe" slot="4"/>
+          <InventoryItem type="diamond_pickaxe" slot="5"/>
       </Inventory>
     </AgentStart>
     <AgentHandlers>
@@ -261,7 +209,7 @@
     <AgentStart>
       <Placement x="0.5"  y="46" z="9.5" pitch="0" yaw="180"/>
       <Inventory>
-        <InventoryItem type="diamond_pickaxe" slot="4"/>
+        <InventoryItem type="diamond_pickaxe" slot="6"/>
       </Inventory>
     </AgentStart>
     <AgentHandlers>
@@ -322,17 +270,48 @@
     </AgentHandlers>
   </AgentSection>
 
-  <AgentSection mode="Creative">
-    <Name>Skye</Name>
+     <AgentSection mode="Survival">
+    <Name>Tom</Name>
     <AgentStart>
-      <Placement x="7.5" y="60" z="-1.01" pitch="70"/>
+      <Placement x="9.5"  y="46" z="0.5" pitch="0" yaw="0"/>
+      <Inventory>
+          <InventoryItem type="diamond_pickaxe" slot="3"/>
+      </Inventory>
     </AgentStart>
     <AgentHandlers>
-      <MissionQuitCommands quitDescription="quit"/>
-      <VideoProducer>
-        <Width>640</Width>
-        <Height>640</Height>
+      <ChatCommands/>
+      <ObservationFromFullInventory flat="false"/>
+      <DiscreteMovementCommands/>
+      <ObservationFromDiscreteCell/>
+	  <ObservationFromFullStats/>
+      <ObservationFromRay/>
+      <VideoProducer want_depth="false">
+        <Width>200</Width>
+        <Height>150</Height>
       </VideoProducer>
+      <RewardForTouchingBlockType>
+        <Block reward="-40.0" type="emerald_block" behaviour="onceOnly"/>
+        <Block reward="40.0" type="redstone_block" behaviour="onceOnly"/>
+		<Block reward="20.0" type="sandstone" behaviour="onceOnly"/>
+        <Block reward="-10.0" type="iron_ore" behaviour="onceOnly"/>
+        <Block reward="1000.0" type="gold_ore" behaviour="onceOnly"/>
+        <Block reward="1.0" type="cobblestone" behaviour="constant"/>
+        <Block reward="-200.0" type="bedrock" behaviour="constant"/>
+        <Block reward="100000.0" type="log" behaviour="onceOnly"/>
+        <Block reward="-100000.0" type="quartz_block" behaviour="onceOnly"/>
+      </RewardForTouchingBlockType>
+      <RewardForSendingCommand reward="-5" />
+        <RewardForSendingMatchingChatMessage>
+          <ChatMatch description="I won the game!" reward="1000000" regex=""/>
+        </RewardForSendingMatchingChatMessage>
+        <RewardForCollectingItem>
+          <Item reward="-3000" type="bedrock"/>
+          <Item reward="-3000" type="quartz_block"/>
+          <Item reward="100000" type="log"/>
+      </RewardForCollectingItem>
+      <MissionQuitCommands quitDescription="quit"/>
     </AgentHandlers>
   </AgentSection>
+
 </Mission>
+

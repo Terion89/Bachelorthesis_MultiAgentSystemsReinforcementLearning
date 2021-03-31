@@ -71,14 +71,14 @@ if __name__ == '__main__':
     parser.add_argument('--reward-scale-factor', type=float, default=1e-3)
     args = parser.parse_args()
 
-    #misc.set_random_seed(args.seed, gpus=(args.gpu,))
+    # misc.set_random_seed(args.seed, gpus=(args.gpu,))
     args.outdir = experiments.prepare_output_dir(
         args, args.outdir, argv=sys.argv)
     print('Output files are saved in {}'.format(args.outdir))
 
     """ initialize clientpool and environment """
     client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002), ('127.0.0.1', 10003),
-                   ('127.0.0.1', 10004), ('127.0.0.1', 10005)]
+                   ('127.0.0.1', 10004), ('127.0.0.1', 10005), ('127.0.0.1', 10006)]
     env.init(start_minecraft=False, client_pool=client_pool)
 
     """ WIP: need to skip that """
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     outdir:                 directory to save the results
     train_max_episode_len:  ..
     logger:                 to log errors and information 
-    step_offset:            startingpoint, is 0 at the beginning
+    step_offset:            startingpoint, is 1 at the beginning
     eval_max_episode_len:   ..
     successful_score:       ..
     step_hooks:             ..
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     train_max_episode_len = timestep_limit
     logger = logger or logging.getLogger(__name__)
 
-    step_offset = 0
+    step_offset = 1
     eval_max_episode_len = None
     successful_score = None
     step_hooks = ()
@@ -217,16 +217,13 @@ if __name__ == '__main__':
                            )
     """
     """ 
-    int r<>:                        initialisation of the reward per agent, starts at 0
+    # int r<>:                        initialisation of the reward per agent, starts at 0
     bool done<>:                    mission is running as long as 'done'-flag is false 
     int t:                          current step of episode, starts at 0
     int max_episode_len:            None, set at another point
     float time_step_start:          start time of the episode, to track length for timeout
     string experiment_ID:           must be the same in every agent to combine them in one arena, must be a string
     """
-
-    r1 = r2 = r3 = r4 = 0
-    done1 = done2 = done3 = done4 = done_team01 = done_team02 = False
 
     t = step_offset
 
@@ -245,6 +242,7 @@ if __name__ == '__main__':
 
     """ initial observation """
     obs1, obs2, obs3, obs4 = env.reset_world(experiment_ID)
+    r1 = r2 = r3 = r4 = 0
 
     """ save new episode start into result.txt """
     env.save_new_round(t)
@@ -252,13 +250,12 @@ if __name__ == '__main__':
     """ start training episodes """
     while t < steps:
         try:
-            while not done_team01 and not done_team02:
+            while not env.done_team01 and not env.done_team02:
 
                 """ current time to calculate the elapsed time """
                 time_stamp_current = time.time()
                 time_step = time_stamp_current - time_stamp_start
                 print("mission time up: %i sec" % (time_step))
-
 
                 """ calculate the next steps for the agents """
                 action1 = tom.act_and_train(obs1, r1)
@@ -268,9 +265,11 @@ if __name__ == '__main__':
                 # time.sleep(1)
 
                 """ check if agents would run into each other when they do the calculated step """
-                action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2,
-                                                                          obs3, obs4, r1, r2, r3, r4, action1, action2,
+                action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, env.obs1,
+                                                                          obs2, obs3, obs4, r1, r2,
+                                                                          r3, r4, action1, action2,
                                                                           action3, action4, time_step)
+
                 # time.sleep(1)
                 """ do calculated steps, check if they were executed and pass information of the time_step """
                 while not env.command_executed_tom:
@@ -283,7 +282,12 @@ if __name__ == '__main__':
                     env.x1_prev, y1, env.z1_prev = env.get_position_in_arena(world_state1, time_step, 1)
                     obs1, r1, done1, info1 = env.step_generating(action1, 1)
                     env.command_executed_tom = env.check_if_command_was_executed(1, time_step)
-
+                    if done1:
+                        env.done_team01 = True
+                        
+                    env.overall_reward_agent_Tom += r1
+                    print("Current Reward Tom:   ", env.overall_reward_agent_Tom)
+                    
                 while not env.command_executed_jerry:
                     world_state2 = env.agent_host2.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
@@ -294,6 +298,12 @@ if __name__ == '__main__':
                     env.x2_prev, y2, env.z2_prev = env.get_position_in_arena(world_state2, time_step, 2)
                     obs2, r2, done2, info2 = env.step_generating(action2, 2)
                     env.command_executed_jerry = env.check_if_command_was_executed(2, time_step)
+                    
+                    if done2:
+                        env.done_team02 = True                
+                    
+                    env.overall_reward_agent_Jerry += r2
+                    print("Current Reward Jerry: ", env.overall_reward_agent_Jerry)
 
                 while not env.command_executed_roadrunner:
                     world_state3 = env.agent_host3.peekWorldState()
@@ -304,8 +314,15 @@ if __name__ == '__main__':
                         time.sleep(0.01)
                     env.x3_prev, y3, env.z3_prev = env.get_position_in_arena(world_state3, time_step, 3)
                     obs3, r3, done3, info3 = env.step_generating(action3, 3)
+                    print(env.r3)
                     env.command_executed_roadrunner = env.check_if_command_was_executed(3, time_step)
-
+                    if done3:
+                        env.done_team01 = True
+                        
+                    env.overall_reward_agent_roadrunner += r3
+                
+                    print("Current Reward Roadrunner:   ", env.overall_reward_agent_Tom)
+                
                 while not env.command_executed_coyote:
                     world_state4 = env.agent_host4.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
@@ -314,23 +331,20 @@ if __name__ == '__main__':
                         print(".")
                         time.sleep(0.01)
                     env.x4_prev, y4, env.z4_prev = env.get_position_in_arena(world_state4, time_step, 4)
-                    obs4, r4, done4, info4 = env.step_generating(action4, 4)
+                    obs4, r4, done4,  info4 = env.step_generating(action4, 4)
                     env.command_executed_coyote = env.check_if_command_was_executed(4, time_step)
 
-                if done1 or done3:
-                    done_team01 = True
-                if done2 or done4:
-                    done_team02 = True
+                    if done4:
+                        env.done_team02 = True
+                
+                    env.overall_reward_agent_coyote += r4
 
-                """ sum up the reward for every episode """
-                overall_reward_agent_Tom += r1
-                overall_reward_agent_Jerry += r2
-                overall_reward_agent_roadrunner += r3
-                overall_reward_agent_coyote += r4
-                print("Current Reward Tom:   ", overall_reward_agent_Tom)
-                print("Current Reward Jerry: ", overall_reward_agent_Jerry)
-                print("Current Reward Roadrunner:   ", overall_reward_agent_Tom)
-                print("Current Reward Coyote: ", overall_reward_agent_Jerry)
+                    print("Current Reward Coyote: ", env.overall_reward_agent_Jerry)
+                    
+                print("Current Reward Tom:   ", env.overall_reward_agent_Tom)
+                print("Current Reward Jerry: ", env.overall_reward_agent_Jerry)
+                print("Current Reward Roadrunner:   ", env.overall_reward_agent_Tom)
+                print("Current Reward Coyote: ", env.overall_reward_agent_Jerry)
 
                 """ hook """
                 for hook in step_hooks:
@@ -349,14 +363,18 @@ if __name__ == '__main__':
                 env.command_executed_roadrunner = env.command_executed_coyote = False
 
                 """ end mission when one agent finishes, the agents crash or the time is over, start over again """
-                if env.mission_end or done_team01 or done_team02 or (time_step > 1920):  # 960 = 16 min | 1920 = 32 min
+                if env.mission_end or env.done_team01 or env.done_team02 or (time_step > 1920):
+                    # 960 = 16 min | 1920 = 32 min
 
                     """ send mission QuitCommands to tell Malmo that the mission has ended,save and reset everything """
-                    t, obs1, obs2, r1, r2, obs3, obs4, r3, r4, done_team01, done_team02, overall_reward_agent_Jerry, \
-                    overall_reward_agent_Tom, overall_reward_agent_roadrunner, overall_reward_agent_coyote = \
-                        env.sending_mission_quit_commands(overall_reward_agent_Tom, overall_reward_agent_Jerry,
-                                                          overall_reward_agent_roadrunner, overall_reward_agent_coyote,
-                                                          time_step, obs1, r1, obs2, r2, obs3, r3, obs4, r4, outdir, t,
+                    t, obs1, obs2, r1, r2, obs3, obs4, r3, r4, env.done_team01, \
+                        env.done_team02, env.overall_reward_agent_Jerry, env.overall_reward_agent_Tom, \
+                        env.overall_reward_agent_roadrunner, env.overall_reward_agent_coyote = \
+                        env.sending_mission_quit_commands(env.overall_reward_agent_Tom, env.overall_reward_agent_Jerry,
+                                                          env.overall_reward_agent_roadrunner,
+                                                          env.overall_reward_agent_coyote,
+                                                          time_step, obs1, r1, obs2, r2, obs3,
+                                                          r3, obs4, r4, outdir, t,
                                                           tom, jerry, roadrunner, coyote, experiment_ID)
 
                     time_stamp_start = time.time()

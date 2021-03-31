@@ -25,7 +25,7 @@
             <DrawCuboid x1="-1"  y1="45" z1="-2"  x2="16" y2="48" z2="-1" type="bedrock" />
             <DrawCuboid x1="-1"  y1="45" z1="16"  x2="16" y2="48" z2="17" type="bedrock" />
             <!-- floor -->
-            <DrawCuboid x1="0"  y1="45" z1="0"  x2="15" y2="45" z2="15" type="sandstone" />
+            <DrawCuboid x1="-1"  y1="42" z1="-1"  x2="16" y2="45" z2="16" type="sandstone" />
             <!-- base 01: Tom -->
             <DrawCuboid x1="10"  y1="45" z1="0"  x2="15" y2="45" z2="5" type="redstone_block" />
             <DrawCuboid x1="11"  y1="45" z1="0"  x2="15" y2="45" z2="4" type="iron_ore" />
@@ -312,6 +312,5 @@
       <MissionQuitCommands quitDescription="quit"/>
     </AgentHandlers>
   </AgentSection>
-
 </Mission>
 

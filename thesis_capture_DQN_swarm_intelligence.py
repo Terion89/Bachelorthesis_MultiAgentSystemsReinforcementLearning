@@ -10,6 +10,7 @@ import os
 import sys
 from gym import spaces
 import chainerrl
+import MalmoPython
 
 from observer import OBSERVER
 from thesis.chainerrl.chainerrl import experiments
@@ -78,7 +79,7 @@ if __name__ == '__main__':
 
     """ initialize clientpool and environment """
     client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002), ('127.0.0.1', 10003),
-                   ('127.0.0.1', 10004), ('127.0.0.1', 10005), ('127.0.0.1', 10006)]
+                   ('127.0.0.1', 10004), ('127.0.0.1', 10005)]
     env.init(start_minecraft=False, client_pool=client_pool)
 
     """ WIP: need to skip that """
@@ -241,7 +242,8 @@ if __name__ == '__main__':
     experiment_ID = ""
 
     """ initial observation """
-    obs1, obs2, obs3, obs4 = env.reset_world(experiment_ID)
+
+    obs1, obs2, obs3, obs4 = env.reset_world(experiment_ID, time_stamp_start, t)
     r1 = r2 = r3 = r4 = 0
 
     """ save new episode start into result.txt """
@@ -265,13 +267,13 @@ if __name__ == '__main__':
                 # time.sleep(1)
 
                 """ check if agents would run into each other when they do the calculated step """
-                action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, env.obs1,
-                                                                          obs2, obs3, obs4, r1, r2,
-                                                                          r3, r4, action1, action2,
-                                                                          action3, action4, time_step)
+                action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2,
+                                                                          obs3, obs4, r1, r2, r3, r4,
+                         action1, action2, action3, action4, time_step, t, experiment_ID)
 
                 # time.sleep(1)
                 """ do calculated steps, check if they were executed and pass information of the time_step """
+                t_tom = 0
                 while not env.command_executed_tom:
                     world_state1 = env.agent_host1.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
@@ -282,13 +284,15 @@ if __name__ == '__main__':
                     env.x1_prev, y1, env.z1_prev = env.get_position_in_arena(world_state1, time_step, 1)
                     obs1, r1, done1, info1 = env.step_generating(action1, 1)
                     env.command_executed_tom = env.check_if_command_was_executed(1, time_step)
-                    if done1:
+                    t_tom += 1
+                    if done1 or t_tom == 20:
                         env.done_team01 = True
                         
                     env.overall_reward_agent_Tom += r1
                     print("Current Reward Tom:   ", env.overall_reward_agent_Tom)
                     
                 while not env.command_executed_jerry:
+                    t_jerry = 0
                     world_state2 = env.agent_host2.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state2.number_of_observations_since_last_state == 0:
@@ -298,14 +302,15 @@ if __name__ == '__main__':
                     env.x2_prev, y2, env.z2_prev = env.get_position_in_arena(world_state2, time_step, 2)
                     obs2, r2, done2, info2 = env.step_generating(action2, 2)
                     env.command_executed_jerry = env.check_if_command_was_executed(2, time_step)
-                    
-                    if done2:
+                    t_jerry += 1
+                    if done2 or t_jerry == 20:
                         env.done_team02 = True                
                     
                     env.overall_reward_agent_Jerry += r2
                     print("Current Reward Jerry: ", env.overall_reward_agent_Jerry)
 
                 while not env.command_executed_roadrunner:
+                    t_roadrunner = 0
                     world_state3 = env.agent_host3.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state3.number_of_observations_since_last_state == 0:
@@ -316,7 +321,8 @@ if __name__ == '__main__':
                     obs3, r3, done3, info3 = env.step_generating(action3, 3)
                     print(env.r3)
                     env.command_executed_roadrunner = env.check_if_command_was_executed(3, time_step)
-                    if done3:
+                    t_roadrunner += 2
+                    if done3 or t_roadrunner == 20:
                         env.done_team01 = True
                         
                     env.overall_reward_agent_roadrunner += r3
@@ -324,6 +330,7 @@ if __name__ == '__main__':
                     print("Current Reward Roadrunner:   ", env.overall_reward_agent_Tom)
                 
                 while not env.command_executed_coyote:
+                    t_coyote = 0
                     world_state4 = env.agent_host4.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state4.number_of_observations_since_last_state == 0:
@@ -333,8 +340,8 @@ if __name__ == '__main__':
                     env.x4_prev, y4, env.z4_prev = env.get_position_in_arena(world_state4, time_step, 4)
                     obs4, r4, done4,  info4 = env.step_generating(action4, 4)
                     env.command_executed_coyote = env.check_if_command_was_executed(4, time_step)
-
-                    if done4:
+                    t_coyote += 1
+                    if done4 or t_coyote == 20:
                         env.done_team02 = True
                 
                     env.overall_reward_agent_coyote += r4
@@ -354,7 +361,7 @@ if __name__ == '__main__':
                     hook(env, coyote, t)
 
                 """ check, if an agent captured the flag """
-                env.check_inventory(time_step)
+                env.check_inventory(time_step, t, experiment_ID)
 
                 print("--------------------------------------------------------------------")
 
@@ -392,4 +399,7 @@ if __name__ == '__main__':
             save_agent(jerry, t, outdir, logger, suffix='_except02')
             save_agent(roadrunner, t, outdir, logger, suffix='_except03')
             save_agent(coyote, t, outdir, logger, suffix='_except04')
+
+            """ Reset clients to speed up the following episodes. Otherwise the Minecraft client would get slow."""
+
             raise

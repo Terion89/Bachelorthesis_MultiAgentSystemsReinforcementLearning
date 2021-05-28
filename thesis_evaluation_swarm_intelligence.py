@@ -102,6 +102,7 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     df_evaluation_steps_roadrunner = p.DataFrame({'x': np_evaluation_steps_roadrunner})
     df_evaluation_steps_coyote = p.DataFrame({'x': np_evaluation_steps_coyote})
 
+    print("plot 1")
     """ graph 1 """
     ax1 = plt.subplot2grid((4, 1), (0, 0), colspan=1)
     ax1.set_xlabel('episodes')
@@ -138,8 +139,9 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     locs, labels = xticks()
     xticks(np.arange(len(evaluation_episode_counter)), evaluation_winner_agent)
     plt.grid(True)
-    plt.legend(loc='best')
+    ax1.legend(loc='best')
 
+    print("plot 2")
     """ graph 2 """
     ax2 = plt.subplot2grid((4, 1), (1, 0), colspan=1)
     ax2.set_xlabel('episodes')
@@ -155,8 +157,9 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     ax2.plot('x', 'y', data=df_evaluation_reward_coyote, marker='.', linestyle='-', color="greenyellow", alpha=0.8,
              label="reward coyote")
     plt.grid(True)
-    plt.legend(loc='best')
+    ax2.legend(loc='best')
 
+    print("plot 3")
     """ graph 3 """
     ax3 = plt.subplot2grid((4, 1), (2, 0), colspan=1)
     ax3.set_xlabel('episodes')
@@ -165,21 +168,25 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     xticks(np.arange(t), np_evaluation_episode_counter)
     ax3.plot('x', 'y', data=df_evaluation_too_close_counter, marker='.', linestyle='-', color="blue", alpha=0.8,
              label="number of close contacts per relevant episode")
-    plt.legend(loc='best')
+    ax3.legend(loc='best')
     plt.grid(True)
 
+    print("plot 4")
     """ graph 4 """
     ax4 = plt.subplot2grid((4, 1), (3, 0), colspan=1)
     ax4.set_xlabel('episodes')
     ax4.set_ylabel('time_in_seconds')
     ax4.plot('x', 'y', data=df_evaluation_agents_ran_into_each_other, marker='_', linestyle=':', color="red", alpha=0.8,
-             label="time, agents crashed")
-    plt.legend(loc='best')
+             label="mission length, bevore something crashed")
+    ax4.legend(loc='best')
     plt.grid(True)
 
     """ save the graph """
     plt.savefig(dirname + "/" + "result_plot_" + random_name + ".png", dpi=300)
 
+    print("plot ALL")
     """ show the graph """
     plt.show()
+
+    print("go on")
 

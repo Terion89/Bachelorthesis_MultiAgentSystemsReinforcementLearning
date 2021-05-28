@@ -1,3 +1,4 @@
+import random
 import sys
 import json
 import logging
@@ -231,6 +232,7 @@ class ThesisEnvExperiment(gym.Env):
         """ 
         make client_pool usable for Malmo: change format of the client_pool to struct 
         """
+
         if client_pool:
             if not isinstance(client_pool, list):
                 raise ValueError("client_pool must be list of tuples of (IP-address, port)")
@@ -413,10 +415,6 @@ class ThesisEnvExperiment(gym.Env):
         PARAMETERS: action, agent_num
         RETURN: image, reward, done, info
         """
-        reward1 = reward2 = reward3 = reward4 = 0
-
-        image1 = image2 = image3 = image4 = 0
-        info1 = info2 = info3 = info4 = {}
 
         world_state1 = self.agent_host1.peekWorldState()
         world_state2 = self.agent_host2.peekWorldState()
@@ -433,18 +431,19 @@ class ThesisEnvExperiment(gym.Env):
             world_state3 = self.agent_host3.peekWorldState()
             world_state4 = self.agent_host4.peekWorldState()
 
+        time.sleep(0,1)
+
         if agent_num == 1:
             if world_state1.is_mission_running:
                 """ take action """
                 self.do_action(action, agent_num)
 
-            world_state1 = self.agent_host1.peekWorldState()
             time.sleep(0.3)
 
-            """ calculate reward of current state """
-            for r in world_state1.rewards:
-                reward1 = r.getValue()
-                print("%i, %f"%(reward1, reward1))
+            """ fetch the new wold_state after the step """
+            world_state1 = 0
+            while world_state1 == 0 or world_state1.number_of_observations_since_last_state == 0:
+                world_state1 = self.agent_host1.peekWorldState()
 
             """ take the last frame from world state | 'done'-flag indicates, if mission is still running """
             obs1 = self.get_video_frame(world_state1, 1)
@@ -462,21 +461,24 @@ class ThesisEnvExperiment(gym.Env):
 
             done1 = False
 
-            return obs1, reward1, done1, info1
+            """ calculate reward of current state """
+            for r in world_state1.rewards:
+                reward1 = r.getValue()
+                print("%i, %f" % (reward1, reward1))
+
+                return obs1, reward1, done1, info1
 
         if agent_num == 2:
             if world_state2.is_mission_running:
                 """ take action """
                 self.do_action(action, agent_num)
 
-            """ wait for the new state """
-            world_state2 = self.agent_host2.getWorldState()
             time.sleep(0.3)
 
-            """ calculate reward of current state """
-            for r in world_state2.rewards:
-                reward2 = r.getValue()
-                print("%i, %f"%(reward2, reward2))
+            """ fetch the new wold_state after the step """
+            world_state2 = 0
+            while world_state2 == 0 or world_state2.number_of_observations_since_last_state == 0:
+                world_state2 = self.agent_host2.peekWorldState()
 
             """ take the last frame from world state | 'done'-flag indicates, if mission is still running """
             obs2 = self.get_video_frame(world_state2, 1)
@@ -494,21 +496,23 @@ class ThesisEnvExperiment(gym.Env):
 
             done2 = False
 
-            return obs2, reward2, done2, info2
+            """ calculate reward of current state """
+            for r in world_state2.rewards:
+                reward2 = r.getValue()
+                print("%i, %f" % (reward2, reward2))
+                return obs2, reward2, done2, info2
 
         if agent_num == 3:
             if world_state3.is_mission_running:
                 """ take action """
                 self.do_action(action, agent_num)
 
-            """" wait for the new state """
-            world_state3 = self.agent_host3.getWorldState()
             time.sleep(0.3)
-
-            """ calculate reward of current state """
-            for r in world_state3.rewards:
-                reward3 = r.getValue()
-                print("%i, %f"%(reward3, reward3))
+            """" wait for the new state """
+            """ fetch the new wold_state after the step """
+            world_state3 = 0
+            while world_state3 == 0 or world_state3.number_of_observations_since_last_state == 0:
+                world_state3 = self.agent_host3.peekWorldState()
 
             """ take the last frame from world state | 'done'-flag indicates, if mission is still running """
             obs3 = self.get_video_frame(world_state3, 1)
@@ -526,21 +530,24 @@ class ThesisEnvExperiment(gym.Env):
 
             done3 = False
 
-            return obs3, reward3, done3, info3
+            """ calculate reward of current state """
+            for r in world_state3.rewards:
+                reward3 = r.getValue()
+                print("%i, %f" % (reward3, reward3))
+
+                return obs3, reward3, done3, info3
 
         if agent_num == 4:
             if world_state4.is_mission_running:
                 """ take action """
                 self.do_action(action, agent_num)
 
-            """ wait for the new state """
-            world_state4 = self.agent_host4.getWorldState()
             time.sleep(0.3)
-
-            """ calculate reward of current state """
-            for r in world_state4.rewards:
-                reward4 = r.getValue()
-                print("%i, %f"%(reward4, reward4))
+            """ wait for the new state """
+            """ fetch the new wold_state after the step """
+            world_state4 = 0
+            while world_state4 == 0 or world_state4.number_of_observations_since_last_state == 0:
+                world_state4 = self.agent_host4.peekWorldState()
 
             """ take the last frame from world state | 'done'-flag indicates, if mission is still running """
             obs4 = self.get_video_frame(world_state4, 1)
@@ -558,9 +565,23 @@ class ThesisEnvExperiment(gym.Env):
 
             done4 = False
 
-            return obs4, reward4, done4, info4
+            """ calculate reward of current state """
+            for r in world_state4.rewards:
+                reward4 = r.getValue()
+                print("%i, %f" % (reward4, reward4))
 
-    def reset_world(self, experiment_ID):
+                return obs4, reward4, done4, info4
+
+    def random_timer(self):
+        """
+        A random time-step generator is needed, because the clients must not start after the exact same time difference.
+        This would lead to fails, so a random added float-number solves the starting problem.
+        """
+        random_number = random.random() * 10.0 + 1.0
+        print("random number: ", random_number)
+        return random_number
+
+    def reset_world(self, experiment_ID, time_stamp_start, t):
         """
         reset the arena and start the missions per agent
         The sleep-timer of 10sec is required, because the client needs far too much time to set up the mission
@@ -568,6 +589,7 @@ class ThesisEnvExperiment(gym.Env):
         All following missions start faster (sometimes).
         PARAMETERS: experiment_ID
         """
+
         print("force world reset........")
         self.flag_captured_tom = False
         self.flag_captured_jerry = False
@@ -575,37 +597,44 @@ class ThesisEnvExperiment(gym.Env):
         self.flag_captured_coyote = False
 
         # for better performance
-        time.sleep(0.1)
+        random_wait_time_1 = 6 + self.random_timer()
+        time.sleep(random_wait_time_1)
 
         print(self.client_pool)
 
         for retry in range(self.max_retries + 1):
             try:
                 """ start missions for every client """
-                time.sleep(5)
+                random_wait_time_2 = 6 + self.random_timer()
+                time.sleep(random_wait_time_2)
                 print("starting mission for Skye")
                 self.agent_host0.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               0, experiment_ID)
-                time.sleep(5)
-                print("starting mission for Jerry")
-                self.agent_host2.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
-                                              1, experiment_ID)
-
-                time.sleep(5)
-                print("starting mission for Roadrunner")
-                self.agent_host3.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
-                                              2, experiment_ID)
-
-                time.sleep(5)
-                print("starting mission for Coyote")
-                self.agent_host4.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
-                                              3, experiment_ID)
-
-                time.sleep(5)
+                random_wait_time_3 = 6 + self.random_timer()
+                time.sleep(random_wait_time_3)
                 print("starting mission for Tom")
                 self.agent_host1.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
+                                              1, experiment_ID)
+
+                random_wait_time_4 = 6 + self.random_timer()
+                time.sleep(random_wait_time_4)
+                print("starting mission for Jerry")
+                self.agent_host2.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
+                                              2, experiment_ID)
+
+                random_wait_time_5 = 6 + self.random_timer()
+                time.sleep(random_wait_time_5)
+                print("starting mission for Roadrunner")
+                self.agent_host3.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
+                                              3, experiment_ID)
+
+                random_wait_time_6 = 6 + self.random_timer()
+                time.sleep(random_wait_time_6)
+                print("starting mission for Coyote")
+                self.agent_host4.startMission(self.mission_spec, self.client_pool, self.mission_record_spec,
                                               4, experiment_ID)
-                time.sleep(5)
+                random_wait_time_7 = 6 + self.random_timer()
+                time.sleep(random_wait_time_7)
                 print("\nmissions successfully started.....\n")
                 break
             except RuntimeError as e:
@@ -622,6 +651,9 @@ class ThesisEnvExperiment(gym.Env):
         world_state2 = self.agent_host2.getWorldState()
         world_state3 = self.agent_host3.getWorldState()
         world_state4 = self.agent_host4.getWorldState()
+
+        breaker = 0
+
         while not world_state1.has_mission_begun and not world_state2.has_mission_begun and \
                 not world_state3.has_mission_begun and not world_state4.has_mission_begun:
             time.sleep(0.1)
@@ -629,6 +661,23 @@ class ThesisEnvExperiment(gym.Env):
             world_state2 = self.agent_host2.getWorldState()
             world_state3 = self.agent_host3.getWorldState()
             world_state4 = self.agent_host4.getWorldState()
+            print(breaker)
+            breaker += 1
+
+            if breaker == 100:
+                """ if the mission is broken from the beginning, just throw the episode away and restart """
+                time_stamp_current = time.time()
+                time_step = time_stamp_current - time_stamp_start
+                self.time_step_agents_ran_into_each_other = int(time_step)
+                self.mission_end = True
+                print("The mission is broken due to insufficient client connections.")
+
+                t, obs1, obs2, r1, r2, obs3, obs4, r3, r4, self.done_team01, \
+                self.done_team02, self.overall_reward_agent_Jerry, self.overall_reward_agent_Tom, \
+                self.overall_reward_agent_roadrunner, self.overall_reward_agent_coyote = \
+                    self.quit_after_crash(self, t, experiment_ID)
+                break
+
             for error in world_state1.errors and world_state2.errors and world_state3.errors and world_state4.errors:
                 logger.warning(error.text)
 
@@ -1120,8 +1169,21 @@ class ThesisEnvExperiment(gym.Env):
 
         return x_new, z_new, block_yaw
 
+    def get_new_observations(self, world_state1, world_state2, world_state3, world_state4):
+
+        msg1 = world_state1.observations[-1].text
+        obs1 = json.loads(msg1)
+        msg2 = world_state2.observations[-1].text
+        obs2 = json.loads(msg2)
+        msg3 = world_state3.observations[-1].text
+        obs3 = json.loads(msg3)
+        msg4 = world_state4.observations[-1].text
+        obs4 = json.loads(msg4)
+
+        return obs1, obs2, obs3, obs4
+
     def approve_distance(self, tom, jerry, roadrunner, coyote, obs1, obs2, obs3, obs4, r1, r2, r3, r4,
-                         action1, action2, action3, action4, time_step):
+                         action1, action2, action3, action4, time_step, t, experiment_ID):
         """
         check if agents are to near to eachother
         if so, the next actions are calculated new
@@ -1134,6 +1196,8 @@ class ThesisEnvExperiment(gym.Env):
         world_state3 = self.agent_host3.peekWorldState()
         world_state4 = self.agent_host4.peekWorldState()
 
+        breaker = 0
+
         """ checks, if world_state is read correctly, if not, trys again"""
         while (world_state1.number_of_observations_since_last_state == 0) or \
                 (world_state2.number_of_observations_since_last_state == 0) or \
@@ -1143,7 +1207,21 @@ class ThesisEnvExperiment(gym.Env):
             world_state2 = self.agent_host2.peekWorldState()
             world_state3 = self.agent_host3.peekWorldState()
             world_state4 = self.agent_host4.peekWorldState()
-            print("..")
+            print(breaker)
+
+            breaker += 1
+
+            """ if the mission doesn't get any worldstates in a minute, throw the episode away 
+            because it is broken anyway """
+            if breaker == 120:
+                self.time_step_agents_ran_into_each_other = time_step
+                self.mission_end = True
+                t, obs1, obs2, r1, r2, obs3, obs4, r3, r4, self.done_team01, \
+                self.done_team02, self.overall_reward_agent_Jerry, self.overall_reward_agent_Tom, \
+                self.overall_reward_agent_roadrunner, self.overall_reward_agent_coyote = \
+                    self.quit_after_crash(self, t, experiment_ID)
+                break
+            time.sleep(0.5)
 
         self.x1_prev, y1, self.z1_prev = self.get_position_in_arena(world_state1, time_step, 1)
         self.x2_prev, y2, self.z2_prev = self.get_position_in_arena(world_state2, time_step, 2)
@@ -1173,34 +1251,55 @@ class ThesisEnvExperiment(gym.Env):
             """
             # WIP !!!
             # time.sleep(0.5)
-            if int(self.x1_exp) == int(self.x2_exp) and int(self.z1_exp) == int(self.z2_exp) or \
-                    int(self.x1_exp) == int(self.x3_exp) and int(self.z1_exp) == int(self.z3_exp) or \
-                    int(self.x1_exp) == int(self.x4_exp) and int(self.z1_exp) == int(self.z4_exp) or \
-                    int(self.x2_exp) == int(self.x3_exp) and int(self.z2_exp) == int(self.z3_exp) or \
-                    int(self.x2_exp) == int(self.x4_exp) and int(self.z2_exp) == int(self.z4_exp) or \
-                    int(self.x3_exp) == int(self.x4_exp) and int(self.z3_exp) == int(self.z4_exp) or \
-                    int(self.x1_exp) == int(self.x2_prev) and int(self.z1_exp) == int(self.z2_prev) or \
-                    int(self.x1_exp) == int(self.x3_prev) and int(self.z1_exp) == int(self.z3_prev) or \
-                    int(self.x1_exp) == int(self.x4_prev) and int(self.z1_exp) == int(self.z4_prev) or \
-                    int(self.x2_exp) == int(self.x1_prev) and int(self.z2_exp) == int(self.z1_prev) or \
-                    int(self.x2_exp) == int(self.x3_prev) and int(self.z2_exp) == int(self.z3_prev) or \
-                    int(self.x2_exp) == int(self.x4_prev) and int(self.z2_exp) == int(self.z4_prev) or \
-                    int(self.x3_exp) == int(self.x1_prev) and int(self.z3_exp) == int(self.z1_prev) or \
-                    int(self.x3_exp) == int(self.x2_prev) and int(self.z3_exp) == int(self.z2_prev) or \
-                    int(self.x3_exp) == int(self.x4_prev) and int(self.z3_exp) == int(self.z4_prev) or \
-                    int(self.x4_exp) == int(self.x1_prev) and int(self.z4_exp) == int(self.z1_prev) or \
-                    int(self.x4_exp) == int(self.x2_prev) and int(self.z4_exp) == int(self.z2_prev) or \
-                    int(self.x4_exp) == int(self.x3_prev) and int(self.z4_exp) == int(self.z3_prev):
+            if (int(self.x1_exp) == int(self.x2_exp) and int(self.z1_exp) == int(self.z2_exp))or \
+                    (int(self.x1_exp) == int(self.x3_exp) and int(self.z1_exp) == int(self.z3_exp)) or \
+                    (int(self.x1_exp) == int(self.x4_exp) and int(self.z1_exp) == int(self.z4_exp)) or \
+                      (int(self.x2_exp) == int(self.x3_exp) and int(self.z2_exp) == int(self.z3_exp)) or \
+                       (int(self.x2_exp) == int(self.x4_exp) and int(self.z2_exp) == int(self.z4_exp)) or \
+                        (int(self.x1_exp) == int(self.x2_prev) and int(self.z1_exp) == int(self.z2_prev)) or \
+                         (int(self.x1_exp) == int(self.x3_prev) and int(self.z1_exp) == int(self.z3_prev)) or \
+                    (int(self.x1_exp) == int(self.x4_prev) and int(self.z1_exp) == int(self.z4_prev)) or \
+                    (int(self.x2_exp) == int(self.x1_prev) and int(self.z2_exp) == int(self.z1_prev)) or \
+                    (int(self.x2_exp) == int(self.x3_prev) and int(self.z2_exp) == int(self.z3_prev)) or \
+                    (int(self.x2_exp) == int(self.x4_prev) and int(self.z2_exp) == int(self.z4_prev)) or \
+                    (int(self.x3_exp) == int(self.x1_prev) and int(self.z3_exp) == int(self.z1_prev)) or \
+                    (int(self.x3_exp) == int(self.x2_prev) and int(self.z3_exp) == int(self.z2_prev)) or \
+                    (int(self.x3_exp) == int(self.x4_prev) and int(self.z3_exp) == int(self.z4_prev)) or \
+                    (int(self.x4_exp) == int(self.x1_prev) and int(self.z4_exp) == int(self.z1_prev)) or \
+                    (int(self.x4_exp) == int(self.x2_prev) and int(self.z4_exp) == int(self.z2_prev)) or \
+                    (int(self.x4_exp) == int(self.x3_prev) and int(self.z4_exp) == int(self.z3_prev)):
 
                 needed_new_calculation = True
-                action1 = tom.act_and_train(obs1, r1)
-                # time.sleep(0.05)
-                action2 = jerry.act_and_train(obs2, r2)
-                # time.sleep(0.05)
-                action3 = roadrunner.act_and_train(obs3, r3)
-                # time.sleep(0.05)
-                action4 = coyote.act_and_train(obs4, r4)
-                # time.sleep(0.05)
+
+                while not (len(world_state1.observations) >= 1 and len(world_state2.observations) >= 1 and
+                           len(world_state3.observations) >= 1 and len(world_state3.observations) >= 1):
+                    world_state1 = self.agent_host1.peekWorldState()
+                    world_state2 = self.agent_host2.peekWorldState()
+                    world_state3 = self.agent_host3.peekWorldState()
+                    world_state4 = self.agent_host4.peekWorldState()
+
+                if (len(world_state1.observations) >= 1 and len(world_state2.observations) >= 1 and
+                        len(world_state3.observations) >= 1 and len(world_state3.observations) >= 1):
+                    obs1 = self.get_video_frame(world_state1, 1)
+                    obs2 = self.get_video_frame(world_state2, 2)
+                    obs3 = self.get_video_frame(world_state3, 3)
+                    obs4 = self.get_video_frame(world_state4, 4)
+
+                if (len(world_state1.observations) >= 1 and len(world_state2.observations) >= 1 and
+                        len(world_state3.observations) >= 1 and len(world_state3.observations) >= 1):
+
+                    print(obs1)
+                    print(obs2)
+                    print(obs3)
+                    print(obs4)
+                    action1 = tom.act_and_train(obs1, r1)
+                    # time.sleep(0.05)
+                    action2 = jerry.act_and_train(obs2, r2)
+                    # time.sleep(0.05)
+                    action3 = roadrunner.act_and_train(obs3, r3)
+                    # time.sleep(0.05)
+                    action4 = coyote.act_and_train(obs4, r4)
+                    # time.sleep(0.05)
 
             else:
                 steps_approved = True
@@ -1239,7 +1338,7 @@ class ThesisEnvExperiment(gym.Env):
 
                 x1_current, y1, z1_current = self.get_position_in_arena(world_state1, time_step, 1)
                 print("Tom's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
-                x1_current, z1_current, self.x1_exp, self.z1_exp))
+                    x1_current, z1_current, self.x1_exp, self.z1_exp))
                 if int(self.x1_exp) == int(x1_current) and int(self.z1_exp) == int(z1_current):
                     print("Tom executed sucessfully.")
                     return True
@@ -1273,7 +1372,7 @@ class ThesisEnvExperiment(gym.Env):
 
                 x2_current, y2, z2_current = self.get_position_in_arena(world_state2, time_step, 2)
                 print("Jerry's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
-                x2_current, z2_current, self.x2_exp, self.z2_exp))
+                    x2_current, z2_current, self.x2_exp, self.z2_exp))
                 if int(self.x2_exp) == int(x2_current) and int(self.z2_exp) == int(z2_current):
                     print("Jerry executed sucessfully.")
                     return True
@@ -1307,7 +1406,7 @@ class ThesisEnvExperiment(gym.Env):
 
                 x3_current, y3, z3_current = self.get_position_in_arena(world_state3, time_step, 3)
                 print("Roadrunner's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
-                x3_current, z3_current, self.x3_exp, self.z3_exp))
+                    x3_current, z3_current, self.x3_exp, self.z3_exp))
                 if int(self.x3_exp) == int(x3_current) and int(self.z3_exp) == int(z3_current):
                     print("Roadrunner executed sucessfully.")
                     return True
@@ -1341,7 +1440,7 @@ class ThesisEnvExperiment(gym.Env):
 
                 x4_current, y4, z4_current = self.get_position_in_arena(world_state4, time_step, 4)
                 print("Coyote's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
-                x4_current, z4_current, self.x4_exp, self.z4_exp))
+                    x4_current, z4_current, self.x4_exp, self.z4_exp))
                 if int(self.x4_exp) == int(x4_current) and int(self.z4_exp) == int(z4_current):
                     print("Coyote executed sucessfully.")
                     return True
@@ -1376,14 +1475,14 @@ class ThesisEnvExperiment(gym.Env):
                     while world_state == 0 or world_state.number_of_observations_since_last_state == 0:
                         world_state = self.agent_host1.peekWorldState()
 
-                    self.agent_host1.sendCommand("look 1")
+                    self.agent_host1.sendCommand('look 1')
                     # time.sleep(0.2)
                     while world_state_at_feet == 0 or world_state_at_feet.number_of_observations_since_last_state == 0 \
                             or world_state == world_state_at_feet:
                         world_state_at_feet = self.agent_host1.peekWorldState()
 
                     block_yaw = self.block_yaw_tom
-                    self.agent_host1.sendCommand("look -1")
+                    self.agent_host1.sendCommand('look -1')
 
                     """ loop, until the agent looked up again to prevent accidents """
                     while world_state.number_of_observations_since_last_state == \
@@ -1396,14 +1495,14 @@ class ThesisEnvExperiment(gym.Env):
                     while world_state == 0 or world_state.number_of_observations_since_last_state == 0:
                         world_state = self.agent_host2.peekWorldState()
 
-                    self.agent_host2.sendCommand("look 1")
+                    self.agent_host2.sendCommand('look 1')
 
                     while world_state_at_feet == 0 or world_state_at_feet.number_of_observations_since_last_state == 0 \
                             or world_state == world_state_at_feet:
                         world_state_at_feet = self.agent_host2.peekWorldState()
 
                     block_yaw = self.block_yaw_jerry
-                    self.agent_host2.sendCommand("look -1")
+                    self.agent_host2.sendCommand('look -1')
 
                     """ loop, until the agent looked up again to prevent accidents """
                     while world_state.number_of_observations_since_last_state == \
@@ -1416,14 +1515,14 @@ class ThesisEnvExperiment(gym.Env):
                     while world_state == 0 or world_state.number_of_observations_since_last_state == 0:
                         world_state = self.agent_host3.peekWorldState()
 
-                    self.agent_host3.sendCommand("look 1")
+                    self.agent_host3.sendCommand('look 1')
 
                     while world_state_at_feet == 0 or world_state_at_feet.number_of_observations_since_last_state == 0 \
                             or world_state == world_state_at_feet:
                         world_state_at_feet = self.agent_host3.peekWorldState()
 
                     block_yaw = self.block_yaw_roadrunner
-                    self.agent_host3.sendCommand("look -1")
+                    self.agent_host3.sendCommand('look -1')
 
                     """ loop, until the agent looked up again to prevent accidents """
                     while world_state.number_of_observations_since_last_state == \
@@ -1435,14 +1534,14 @@ class ThesisEnvExperiment(gym.Env):
                     while world_state == 0 or world_state.number_of_observations_since_last_state == 0:
                         world_state = self.agent_host4.peekWorldState()
 
-                    self.agent_host4.sendCommand("look 1")
+                    self.agent_host4.sendCommand('look 1')
 
                     while world_state_at_feet == 0 or world_state_at_feet.number_of_observations_since_last_state == 0 \
                             or world_state == world_state_at_feet:
                         world_state_at_feet = self.agent_host4.peekWorldState()
 
                     block_yaw = self.block_yaw_coyote
-                    self.agent_host4.sendCommand("look -1")
+                    self.agent_host4.sendCommand('look -1')
 
                     """ loop, until the agent looked up again to prevent accidents """
                     while world_state.number_of_observations_since_last_state == \
@@ -1489,34 +1588,34 @@ class ThesisEnvExperiment(gym.Env):
                                         return False
                     else:
                         if agent_num == 1:
-                            self.agent_host1.sendCommand("turn 1")
+                            self.agent_host1.sendCommand('turn 1')
                         if agent_num == 2:
-                            self.agent_host2.sendCommand("turn 1")
+                            self.agent_host2.sendCommand('turn 1')
                         if agent_num == 3:
-                            self.agent_host3.sendCommand("turn 1")
+                            self.agent_host3.sendCommand('turn 1')
                         if agent_num == 4:
-                            self.agent_host4.sendCommand("turn 1")
+                            self.agent_host4.sendCommand('turn 1')
 
     def winner_behaviour(self, agent_host, time_step, name):
         """
         hardcoded winner-behaviour to end the mission:
         look down, place flag, look up again and jump on flag
         """
-        agent_host.sendCommand("chat I won the game!")
+        agent_host.sendCommand('chat I won the game!')
         self.append_save_file_with_finish(time_step, name)
         self.time_step_tom_won = time_step
         self.winner_agent = name
 
-        agent_host.sendCommand("look 1")
+        agent_host.sendCommand('look 1')
         time.sleep(1)
-        agent_host.sendCommand("use 1")
+        agent_host.sendCommand('use 1')
         time.sleep(1)
-        agent_host.sendCommand("look -1")
+        agent_host.sendCommand('look -1')
         time.sleep(1)
-        agent_host.sendCommand("jumpmove 1")
+        agent_host.sendCommand('jumpmove 1')
         time.sleep(1)
 
-    def check_inventory(self, time_step):
+    def check_inventory(self, time_step, t, experiment_ID):
         """
         checks, if the agent got the flag in his inventory
         """
@@ -1573,6 +1672,7 @@ class ThesisEnvExperiment(gym.Env):
             if self.flag_captured_tom or self.flag_captured_roadrunner:
                 print("[INFO] Team Tom and Roadrunner holds the flag.")
             else:
+                breaker = 0
                 last_inventory_tom = obs1[u'inventory']
                 last_inventory_roadrunner = obs3[u'inventory']
                 inventory_string_tom = json.dumps(last_inventory_tom)
@@ -1580,39 +1680,51 @@ class ThesisEnvExperiment(gym.Env):
                 if inventory_string_tom.find('quartz') != -1:
                     """ swaps quartz with log, to place back quartz """
                     if json.dumps(inventory_string_tom.find('log') != -1):
-                        self.agent_host1.sendCommand("swapInventoryItems 0 1")
+                        self.agent_host1.sendCommand('swapInventoryItems 0 1')
                         # self.agent_host1.sendCommand("chat Wrong flag, I'll put it back!")
                     time.sleep(0.3)
 
                     """ as long as there is a false flag in the inventory, place it back """
-                    while json.dumps(inventory_string_tom.find('quartz') != -1):
-                        self.agent_host1.sendCommand("use")
+                    while inventory_string_tom.find('quartz') != -1:
+                        print(json.dumps(inventory_string_tom.find('quartz')) != -1)
+                        self.agent_host1.sendCommand('use 1')
+                        time.sleep(1)
                         world_state1 = self.agent_host1.peekWorldState()
                         msg1 = world_state1.observations[-1].text
                         obs1 = json.loads(msg1)
                         last_inventory_tom = obs1[u'inventory']
                         inventory_string_tom = json.dumps(last_inventory_tom)
+                        breaker+=1
+                        time.sleep(0,5)
+                        if breaker ==120:
+                            self.quit_after_crash(t, experiment_ID)
 
-                    self.agent_host1.sendCommand("swapInventoryItems 0 1")
+                    self.agent_host1.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.3)
 
                 if inventory_string_roadrunner.find('quartz') != -1:
                     """ swaps quartz with log, to place back quartz """
                     if json.dumps(inventory_string_roadrunner.find('log') != -1):
-                        self.agent_host3.sendCommand("swapInventoryItems 0 1")
+                        self.agent_host3.sendCommand('swapInventoryItems 0 1')
                         # self.agent_host3.sendCommand("chat Wrong flag, I'll put it back!")
                     time.sleep(0.3)
 
                     """ as long as there is a false flag in the inventory, place it back """
-                    while json.dumps(inventory_string_roadrunner.find('quartz') != -1):
-                        self.agent_host3.sendCommand("use")
+                    while inventory_string_roadrunner.find('quartz') != -1:
+                        print(json.dumps(inventory_string_roadrunner.find('quartz') != -1))
+                        self.agent_host3.sendCommand('use 1')
+                        time.sleep(1)
                         world_state3 = self.agent_host3.peekWorldState()
                         msg3 = world_state3.observations[-1].text
                         obs3 = json.loads(msg3)
-                        last_inventory_roadrunner = obs1[u'inventory']
+                        last_inventory_roadrunner = obs3[u'inventory']
                         inventory_string_roadrunner = json.dumps(last_inventory_roadrunner)
+                        breaker += 1
+                        time.sleep(0, 5)
+                        if breaker == 120:
+                            self.quit_after_crash(t, experiment_ID)
 
-                    self.agent_host3.sendCommand("swapInventoryItems 0 1")
+                    self.agent_host3.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.3)
 
                 if inventory_string_tom.find('log') != -1:
@@ -1621,7 +1733,7 @@ class ThesisEnvExperiment(gym.Env):
                     self.append_save_file_with_flag(time_step, "Tom")
                     print(
                         "----------------------------------------------------------------Tom captured the flag after %i seconds!" % (
-                        time_step))
+                            time_step))
 
                 if inventory_string_roadrunner.find('log') != -1:
                     self.flag_captured_roadrunner = True
@@ -1654,39 +1766,50 @@ class ThesisEnvExperiment(gym.Env):
                 if inventory_string_jerry.find('log') != -1:
                     """ swaps quartz with log, to place back quartz """
                     if json.dumps(inventory_string_jerry.find('quartz') != -1):
-                        self.agent_host2.sendCommand("swapInventoryItems 0 1")
+                        self.agent_host2.sendCommand('swapInventoryItems 0 1')
                         # self.agent_host2.sendCommand("chat Wrong flag, I'll put it back!")
                     time.sleep(0.3)
 
                     """ as long as there is a false flag in the inventory, place it back """
-                    while json.dumps(inventory_string_jerry.find('log') != -1):
-                        self.agent_host2.sendCommand("use")
+                    while inventory_string_jerry.find('log') != -1:
+                        print(json.dumps(inventory_string_jerry.find('log') != -1))
+                        self.agent_host2.sendCommand('use 1')
+                        time.sleep(1)
                         world_state2 = self.agent_host2.peekWorldState()
                         msg2 = world_state2.observations[-1].text
                         obs2 = json.loads(msg2)
                         last_inventory_jerry = obs2[u'inventory']
                         inventory_string_jerry = json.dumps(last_inventory_jerry)
+                        breaker += 1
+                        time.sleep(0, 5)
+                        if breaker == 120:
+                            self.quit_after_crash(t, experiment_ID)
 
-                    self.agent_host2.sendCommand("swapInventoryItems 0 1")
+                    self.agent_host2.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.3)
 
                 if inventory_string_coyote.find('log') != -1:
                     """ swaps quartz with log, to place back quartz """
                     if json.dumps(inventory_string_coyote.find('quartz') != -1):
-                        self.agent_host4.sendCommand("swapInventoryItems 0 1")
+                        self.agent_host4.sendCommand('swapInventoryItems 0 1')
                         # self.agent_host4.sendCommand("chat Wrong flag, I'll put it back!")
                     time.sleep(0.3)
 
                     """ as long as there is a false flag in the inventory, place it back """
-                    while json.dumps(inventory_string_coyote.find('log') != -1):
-                        self.agent_host4.sendCommand("use")
+                    while inventory_string_coyote.find('log') != -1:
+                        self.agent_host4.sendCommand('use 1')
+                        time.sleep(1)
                         world_state4 = self.agent_host4.peekWorldState()
                         msg4 = world_state4.observations[-1].text
                         obs4 = json.loads(msg4)
                         last_inventory_coyote = obs4[u'inventory']
                         inventory_string_coyote = json.dumps(last_inventory_coyote)
+                        breaker += 1
+                        time.sleep(0, 5)
+                        if breaker == 120:
+                            self.quit_after_crash(t, experiment_ID)
 
-                    self.agent_host4.sendCommand("swapInventoryItems 0 1")
+                    self.agent_host4.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.3)
 
                 if inventory_string_jerry.find('quartz') != -1:
@@ -1704,55 +1827,33 @@ class ThesisEnvExperiment(gym.Env):
                         "----------------------------------------------------------------Coyote captured the flag after %i seconds!" % (
                             time_step))
 
-    def sending_mission_quit_commands(self, overall_reward_agent_Tom, overall_reward_agent_Jerry,
-                                      overall_reward_agent_roadrunner, overall_reward_agent_coyote,
-                                      time_step, obs1, r1, obs2, r2, obs3, r3, obs4, r4, outdir, t,
-                                      tom, jerry, roadrunner, coyote, experiment_ID):
+    def quit_after_crash(self, t, experiment_ID):
 
         """ send the MissionQuit Command to tell the Mod we finished """
-        self.agent_host0.sendCommand("quit")
-        self.agent_host1.sendCommand("quit")
-        self.agent_host2.sendCommand("quit")
-        self.agent_host3.sendCommand("quit")
-        self.agent_host4.sendCommand("quit")
+        self.agent_host0.sendCommand('quit')
+        self.agent_host1.sendCommand('quit')
+        self.agent_host2.sendCommand('quit')
+        self.agent_host3.sendCommand('quit')
+        self.agent_host4.sendCommand('quit')
 
-        """ save-path for the evaluation-plot """
-        dirname = os.path.join(outdir, 'plots')
-        print("dirname: ", dirname)
+        """ Needed the Sleep-Timer, to give the Mod time, to quit the missions """
+        time.sleep(3)
 
-        """ save and show results of reward calculations """
-        self.save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, overall_reward_agent_roadrunner, \
-                          overall_reward_agent_coyote, time_step)
-        print("Final Reward Tom:   ", overall_reward_agent_Tom)
-        print("Final Reward Jerry: ", overall_reward_agent_Jerry)
-        print("Final Reward Roadrunner:   ", overall_reward_agent_roadrunner)
-        print("Final Reward Coyote: ", overall_reward_agent_coyote)
-
-        """ end episode, save results """
-        tom.stop_episode_and_train(obs1, r1, done=True)
-        jerry.stop_episode_and_train(obs2, r2, done=True)
-        roadrunner.stop_episode_and_train(obs3, r3, done=True)
-        coyote.stop_episode_and_train(obs4, r4, done=True)
-        print("outdir: %s step: %s " % (outdir, t))
-        print("Tom's statistics:   ", tom.get_statistics())
-        print("Jerry's statistics: ", jerry.get_statistics())
-        print("Roadrunners's statistics:   ", roadrunner.get_statistics())
-        print("Coyote's statistics: ", coyote.get_statistics())
-
-        """ save the final model and results """
-        save_agent(tom, t, outdir, logger, suffix='_finish_01')
-        save_agent(jerry, t, outdir, logger, suffix='_finish_02')
-        save_agent(roadrunner, t, outdir, logger, suffix='_finish_03')
-        save_agent(coyote, t, outdir, logger, suffix='_finish_04')
-
-        """ save all the collected data for evaluation graphs """
-        self.save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
-                                            overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
-                                            overall_reward_agent_coyote, dirname)
-        """ recover """
-        time.sleep(2)
+        """ Reset clients to speed up the following episodes. Otherwise the Minecraft client would get slow."""
+        print("reset Clients")
+        """self.agent_host0.killClient(MalmoPython.ClientInfo('127.0.0.1', 10000))
+        time.sleep(120)
+        self.agent_host1.killClient(MalmoPython.ClientInfo('127.0.0.1', 10001))
+        time.sleep(120)
+        self.agent_host2.killClient(MalmoPython.ClientInfo('127.0.0.1', 10002))
+        time.sleep(120)
+        self.agent_host3.killClient(MalmoPython.ClientInfo('127.0.0.1', 10003))
+        time.sleep(120)
+        self.agent_host4.killClient(MalmoPython.ClientInfo('127.0.0.1', 10004))
+        time.sleep(120)"""
 
         """ initialisation for the next episode, reset parameters, build new world """
+
         t += 1
         self.episode_counter += 1
         self.r1 = self.r2 = self.r3 = self.r4 = 0
@@ -1762,7 +1863,7 @@ class ThesisEnvExperiment(gym.Env):
         self.overall_reward_agent_roadrunner = self.overall_reward_agent_coyote = 0
         self.save_new_round(t)
 
-        self.obs1, self.obs2, self.obs3, self.obs4 = self.reset_world(experiment_ID)
+        self.obs1, self.obs2, self.obs3, self.obs4 = self.reset_world(experiment_ID, time_stamp_start=time.time())
 
         self.too_close_counter = 0
         self.winner_agent = "-"
@@ -1790,6 +1891,119 @@ class ThesisEnvExperiment(gym.Env):
         return t, self.obs1, self.obs2, self.r1, self.r2, self.obs3, self.obs4, self.r3, self.r4, self.done_team01, \
                self.done_team02, self.overall_reward_agent_Jerry, \
                self.overall_reward_agent_Tom, self.overall_reward_agent_roadrunner, self.overall_reward_agent_coyote
+
+
+
+    def sending_mission_quit_commands(self, overall_reward_agent_Tom, overall_reward_agent_Jerry,
+                                          overall_reward_agent_roadrunner, overall_reward_agent_coyote,
+                                          time_step, obs1, r1, obs2, r2, obs3, r3, obs4, r4, outdir, t,
+                                          tom, jerry, roadrunner, coyote, experiment_ID):
+
+            """ send the MissionQuit Command to tell the Mod we finished """
+            self.agent_host0.sendCommand('quit')
+            self.agent_host1.sendCommand('quit')
+            self.agent_host2.sendCommand('quit')
+            self.agent_host3.sendCommand('quit')
+            self.agent_host4.sendCommand('quit')
+
+            """ Needed the Sleep-Timer, to give the Mod time, to quit the missions """
+            time.sleep(3)
+
+            """ Reset clients to speed up the following episodes. Otherwise the Minecraft client would get slow."""
+            print("reset Clients")
+            """ self.agent_host0.killClient(MalmoPython.ClientInfo('127.0.0.1', 10000))
+            time.sleep(120)
+            self.agent_host1.killClient(MalmoPython.ClientInfo('127.0.0.1', 10001))
+            time.sleep(120)
+            self.agent_host2.killClient(MalmoPython.ClientInfo('127.0.0.1', 10002))
+            time.sleep(120)
+            self.agent_host3.killClient(MalmoPython.ClientInfo('127.0.0.1', 10003))
+            time.sleep(120)
+            self.agent_host4.killClient(MalmoPython.ClientInfo('127.0.0.1', 10004))
+            time.sleep(120)"""
+
+
+            """ save-path for the evaluation-plot """
+            dirname = os.path.join(outdir, 'plots')
+            print("dirname: ", dirname)
+
+            """ save and show results of reward calculations """
+            self.save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, overall_reward_agent_roadrunner, \
+                              overall_reward_agent_coyote, time_step)
+            print("Final Reward Tom:   ", overall_reward_agent_Tom)
+            print("Final Reward Jerry: ", overall_reward_agent_Jerry)
+            print("Final Reward Roadrunner:   ", overall_reward_agent_roadrunner)
+            print("Final Reward Coyote: ", overall_reward_agent_coyote)
+
+            """ end episode, save results """
+            tom.stop_episode_and_train(obs1, r1, done=True)
+            jerry.stop_episode_and_train(obs2, r2, done=True)
+            roadrunner.stop_episode_and_train(obs3, r3, done=True)
+            coyote.stop_episode_and_train(obs4, r4, done=True)
+            print("outdir: %s step: %s " % (outdir, t))
+            print("Tom's statistics:   ", tom.get_statistics())
+            print("Jerry's statistics: ", jerry.get_statistics())
+            print("Roadrunners's statistics:   ", roadrunner.get_statistics())
+            print("Coyote's statistics: ", coyote.get_statistics())
+
+            """ save the final model and results """
+            save_agent(tom, t, outdir, logger, suffix='_finish_01')
+            save_agent(jerry, t, outdir, logger, suffix='_finish_02')
+            save_agent(roadrunner, t, outdir, logger, suffix='_finish_03')
+            save_agent(coyote, t, outdir, logger, suffix='_finish_04')
+
+            print("save data for evaluation")
+            """ save all the collected data for evaluation graphs """
+            self.save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
+                                                overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                                overall_reward_agent_coyote, dirname)
+            """ recover """
+            time.sleep(2)
+
+            """ initialisation for the next episode, reset parameters, build new world """
+            print("initiate new episode")
+            t += 1
+            self.episode_counter += 1
+            self.r1 = self.r2 = self.r3 = self.r4 = 0
+            self.done1 = self.done2 = self.done3 = self.done4 = False
+            self.done_team01 = self.done_team02 = self.mission_end = False
+            self.overall_reward_agent_Jerry = self.overall_reward_agent_Tom = 0
+            self.overall_reward_agent_roadrunner = self.overall_reward_agent_coyote = 0
+            self.save_new_round(t)
+
+            time_stamp_start = time.time()
+            print("new start time: ", time_stamp_start)
+
+            self.too_close_counter = 0
+            self.winner_agent = "-"
+            self.time_step_tom_won = self.time_step_jerry_won = None
+            self.time_step_roadrunner_won = self.time_step_coyote_won = None
+            self.time_step_tom_captured_the_flag = self.time_step_jerry_captured_the_flag = None
+            self.time_step_roadrunner_captured_the_flag = self.time_step_coyote_captured_the_flag = None
+            self.time_step_agents_ran_into_each_other = None
+            self.steps_tom = 0
+            self.steps_jerry = 0
+            self.steps_roadrunner = 0
+            self.steps_coyote = 0
+
+            self.obs1, self.obs2, self.obs3, self.obs4 = self.reset_world(experiment_ID, time_stamp_start, t)
+
+
+            """ recover """
+            time.sleep(2)
+
+            """if evaluator1 and evaluator2 is not None:
+                evaluator1.evaluate_if_necessary(
+                    t=t, episodes=episode_idx + 1)
+                evaluator2.evaluate_if_necessary(
+                    t=t, episodes=episode_idx + 1)
+                if (successful_score is not None and
+                        evaluator1.max_score >= successful_score and evaluator2.max_score >= successful_score):
+                    break"""
+            return t, self.obs1, self.obs2, self.r1, self.r2, self.obs3, self.obs4, self.r3, self.r4, self.done_team01, \
+                   self.done_team02, self.overall_reward_agent_Jerry, \
+                   self.overall_reward_agent_Tom, self.overall_reward_agent_roadrunner, \
+                   self.overall_reward_agent_coyote
 
     def save_data(self):
         """
@@ -1839,6 +2053,7 @@ class ThesisEnvExperiment(gym.Env):
 
             if self.time_step_agents_ran_into_each_other is None:
                 """ save data of valid episodes for the evaluation graph """
+                print("save data of valid episodes for the evaluation graph")
                 self.evaluation_episode_counter.append(self.episode_counter)
                 self.evaluation_episode_time.append(time_step)
                 self.evaluation_too_close_counter.append(self.too_close_counter)
@@ -1848,6 +2063,7 @@ class ThesisEnvExperiment(gym.Env):
                 self.evaluation_reward_coyote.append(overall_reward_agent_coyote)
                 self.evaluation_winner_agent.append(self.winner_agent)
 
+                print("set winner")
                 if self.winner_agent == "Tom":
                     self.evaluation_game_won_timestamp.append(self.time_step_tom_won)
                 if self.winner_agent == "Jerry":
@@ -1866,10 +2082,12 @@ class ThesisEnvExperiment(gym.Env):
                 self.evaluation_steps_roadrunner.append(self.steps_roadrunner)
                 self.evaluation_steps_coyote.append(self.steps_coyote)
 
+            print("save data")
             """ save above values to check the correctness of the graph, just for information """
             self.save_data()
 
             """ evaluate and print the plots """
+            print("evaluate and plot")
             thesis_evaluation_swarm_intelligence.evaluate(t, self.evaluation_episode_counter,
                                                           self.evaluation_episode_time,
                                                           self.evaluation_too_close_counter, self.evaluation_reward_tom,
@@ -1886,3 +2104,4 @@ class ThesisEnvExperiment(gym.Env):
                                                           self.evaluation_steps_tom, self.evaluation_steps_jerry,
                                                           self.evaluation_steps_roadrunner,
                                                           self.evaluation_steps_coyote)
+            print("left plot loop")

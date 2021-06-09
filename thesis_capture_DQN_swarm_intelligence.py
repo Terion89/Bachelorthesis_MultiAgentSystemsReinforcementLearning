@@ -264,16 +264,14 @@ if __name__ == '__main__':
                 action2 = jerry.act_and_train(obs2, r2)
                 action3 = roadrunner.act_and_train(obs3, r3)
                 action4 = coyote.act_and_train(obs4, r4)
-                # time.sleep(1)
 
                 """ check if agents would run into each other when they do the calculated step """
                 action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2,
                                                                           obs3, obs4, r1, r2, r3, r4,
                          action1, action2, action3, action4, time_step, t, experiment_ID)
 
-                # time.sleep(1)
                 """ do calculated steps, check if they were executed and pass information of the time_step """
-                t_tom = 0
+                t_tom = t_jerry = t_roadrunner = t_coyote = 0
                 while not env.command_executed_tom:
                     world_state1 = env.agent_host1.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
@@ -285,14 +283,16 @@ if __name__ == '__main__':
                     obs1, r1, done1, info1 = env.step_generating(action1, 1)
                     env.command_executed_tom = env.check_if_command_was_executed(1, time_step)
                     t_tom += 1
+                    print("t_tom: ", t_tom)
                     if done1 or t_tom == 20:
-                        env.done_team01 = True
+                        """ if the position does not change, the way is definitely blocked, so let's just go on """
+                        env.command_executed_tom = True
+                        break
                         
                     env.overall_reward_agent_Tom += r1
                     print("Current Reward Tom:   ", env.overall_reward_agent_Tom)
-                    
+
                 while not env.command_executed_jerry:
-                    t_jerry = 0
                     world_state2 = env.agent_host2.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state2.number_of_observations_since_last_state == 0:
@@ -303,14 +303,16 @@ if __name__ == '__main__':
                     obs2, r2, done2, info2 = env.step_generating(action2, 2)
                     env.command_executed_jerry = env.check_if_command_was_executed(2, time_step)
                     t_jerry += 1
+                    print("t_jerry: ", t_jerry)
                     if done2 or t_jerry == 20:
-                        env.done_team02 = True                
+                        """ if the position does not change, the way is definitely blocked, so let's just go on """
+                        env.command_executed_jerry = True
+                        break
                     
                     env.overall_reward_agent_Jerry += r2
                     print("Current Reward Jerry: ", env.overall_reward_agent_Jerry)
 
                 while not env.command_executed_roadrunner:
-                    t_roadrunner = 0
                     world_state3 = env.agent_host3.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state3.number_of_observations_since_last_state == 0:
@@ -322,15 +324,17 @@ if __name__ == '__main__':
                     print(env.r3)
                     env.command_executed_roadrunner = env.check_if_command_was_executed(3, time_step)
                     t_roadrunner += 2
+                    print("t_roadrunner: ", t_roadrunner)
                     if done3 or t_roadrunner == 20:
-                        env.done_team01 = True
+                        """ if the position does not change, the way is definitely blocked, so let's just go on """
+                        env.command_executed_roadrunner = True
+                        break
                         
                     env.overall_reward_agent_roadrunner += r3
                 
                     print("Current Reward Roadrunner:   ", env.overall_reward_agent_Tom)
                 
                 while not env.command_executed_coyote:
-                    t_coyote = 0
                     world_state4 = env.agent_host4.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state4.number_of_observations_since_last_state == 0:
@@ -341,8 +345,11 @@ if __name__ == '__main__':
                     obs4, r4, done4,  info4 = env.step_generating(action4, 4)
                     env.command_executed_coyote = env.check_if_command_was_executed(4, time_step)
                     t_coyote += 1
+                    print("t_coyote: ", t_coyote)
                     if done4 or t_coyote == 20:
-                        env.done_team02 = True
+                        """ if the position does not change, the way is definitely blocked, so let's just go on """
+                        env.command_executed_coyote = True
+                        break
                 
                     env.overall_reward_agent_coyote += r4
 

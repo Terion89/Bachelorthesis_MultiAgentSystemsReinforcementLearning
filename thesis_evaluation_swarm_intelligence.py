@@ -77,7 +77,7 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     np_evaluation_steps_coyote = np.asarray(evaluation_steps_coyote)
 
     """ set name of plot to not overwrite it after every episode """
-    random_name = time.strftime('%Y%m%d_%H_%M_%S', time.localtime())
+    individual_name = time.strftime('%Y%m%d_%H_%M_%S', time.localtime())
 
     """ make dir, if it doesn't already exist """
     os.makedirs(dirname, exist_ok=True)
@@ -102,7 +102,6 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     df_evaluation_steps_roadrunner = p.DataFrame({'x': np_evaluation_steps_roadrunner})
     df_evaluation_steps_coyote = p.DataFrame({'x': np_evaluation_steps_coyote})
 
-    print("plot 1")
     """ graph 1 """
     ax1 = plt.subplot2grid((4, 1), (0, 0), colspan=1)
     ax1.set_xlabel('episodes')
@@ -141,13 +140,12 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     plt.grid(True)
     ax1.legend(loc='best')
 
-    print("plot 2")
     """ graph 2 """
     ax2 = plt.subplot2grid((4, 1), (1, 0), colspan=1)
     ax2.set_xlabel('episodes')
     ax2.set_ylabel('reward')
     locs, labels = xticks()
-    xticks(np.arange(t), np_evaluation_episode_counter)
+    xticks(np.arange(len(evaluation_episode_counter)), np_evaluation_episode_counter)
     ax2.plot('x', 'y', data=df_evaluation_reward_tom, marker='.', linestyle='-', color="cornflowerblue", alpha=0.8,
              label="reward tom")
     ax2.plot('x', 'y', data=df_evaluation_reward_jerry, marker='.', linestyle='-', color="springgreen", alpha=0.8,
@@ -159,19 +157,17 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     plt.grid(True)
     ax2.legend(loc='best')
 
-    print("plot 3")
     """ graph 3 """
     ax3 = plt.subplot2grid((4, 1), (2, 0), colspan=1)
     ax3.set_xlabel('episodes')
     ax3.set_ylabel('#agents_were_close')
     locs, labels = xticks()
-    xticks(np.arange(t), np_evaluation_episode_counter)
+    xticks(np.arange(len(evaluation_episode_counter)), np_evaluation_episode_counter)
     ax3.plot('x', 'y', data=df_evaluation_too_close_counter, marker='.', linestyle='-', color="blue", alpha=0.8,
              label="number of close contacts per relevant episode")
     ax3.legend(loc='best')
     plt.grid(True)
 
-    print("plot 4")
     """ graph 4 """
     ax4 = plt.subplot2grid((4, 1), (3, 0), colspan=1)
     ax4.set_xlabel('episodes')
@@ -182,11 +178,11 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     plt.grid(True)
 
     """ save the graph """
-    plt.savefig(dirname + "/" + "result_plot_" + random_name + ".png", dpi=300)
+    plt.savefig(dirname + "/" + "result_plot_" + individual_name + ".png", dpi=300)
 
-    print("plot ALL")
+    print("plot")
     """ show the graph """
-    plt.show()
+    #plt.show()
 
     print("go on")
 

@@ -9,25 +9,65 @@ import numpy as np
 
 from matplotlib.pyplot import xticks
 
-evaluation_episode_counter = [2, 3, 6, 8, 9, 13, 14, 18, 21, 22, 24]
-evaluation_episode_time = [688, 698, 723, 1920, 598, 556, 499, 450, 370, 360]
-evaluation_too_close_counter = [5, 41, 77, 54, 78, 9, 32, 33, 78, 90]
-evaluation_reward_tom = [100, -234, -667, -56, -788, 300, -223, 900, 873, 45]
-evaluation_reward_jerry = [-567, 998, 334, -78, 987, -456, 412, -33, -789, 112]
-evaluation_winner_agent = ["tom", "jerry", "jerry", "-", "jerry", "tom", "jerry", "tom", "tom", "jerry"]
-evaluation_game_won_timestamp = [688, 698, 723, None, 598, 556, 499, 450, 370, 360]
-evaluation_flag_captured_tom = [344, 320, 479, 690, 300, 289, 267, 213, 176, 146]
-evaluation_flag_captured_jerry = [300, 354, 421, 780, 280, 210, 217, 263, 146, 113]
-evaluation_agents_ran_into_each_other = [644, None, None, 1521, 794, None, 1123, None, None, 798, 1908, 793, None, None, 1516, 439, 1490, None,
-                                         970, 1398, None, None, 314, None, 904]
-evaluation_steps_tom = [3000, 3020, 2872, 1534, 2534, 1765, 1873, 1571, 1233, 903]
-evaluation_steps_jerry = [3000, 3020, 2872, 1534, 2534, 1765, 1873, 1571, 1233, 903]
+
+t = 1
+evaluation_episode_counter = [2, 4, 5]
+evaluation_episode_time = [300, 450, 140]
+evaluation_too_close_counter = [4, 20, 3]
+evaluation_reward_tom = [50, -300, 20]
+evaluation_reward_jerry = [50, -300, 20]
+evaluation_reward_roadrunner = [50, -300, 20]
+evaluation_reward_coyote = [50, -300, 20]
+evaluation_winner_agent = ["tom", "roadrunner", "jerry"]
+evaluation_game_won_timestamp = [300, 450, 140]
+evaluation_flag_captured_tom = [150, 30, 0]
+evaluation_flag_captured_jerry = [10, 0, 40]
+evaluation_flag_captured_roadrunner = [50, 250, 40]
+evaluation_flag_captured_coyote = [40, 56, 30]
+evaluation_agents_ran_into_each_other = [50, 78]
+dirname = "samples"
+evaluation_steps_tom = [3000, 3000, 488]
+evaluation_steps_jerry = [3000, 3000, 488]
+evaluation_steps_roadrunner = [3000, 3000, 488]
+evaluation_steps_coyote = [3000, 3000, 488]
+"""
+graph plots to visualize the result
+available data:
+
+evaluation_episode_counter = []             - counts the episodes for evaluation
+evaluation_episode_time = []                - episode duration per episode
+evaluation_too_close_counter = []           - how often they came close per episode
+evaluation_reward_<name> = []               - reward an agent gained per episode
+evaluation_winner_agent = []                - string, who won per episode
+evaluation_game_won_timestamp = []          - timestamp, somebody won per episode
+evaluation_flag_captured_<name> = []        - timestamp an agent captured the flag per episode
+evaluation_agents_ran_into_each_other = []  - timestamp, the agents ran into each other per episode
+evaluation_steps_<name> = []                - steps an agent took during the episode
+dirname: place to save the plots
 
 
-dirname = "plots"
-t = 10
-#######################################################################################################################
-""" font manipulation """
+graph_01: episodes where somebody won the game
+    x: episodes
+    y: time in sec
+       values: overall time, flag_captured_<name>, game_won_timestep + who won
+
+graph_02: episodes where somebody won the game
+    x: episodes
+    y: reward
+       values: rewards of all agents
+
+graph_03: episodes where somebody won the game
+    x: episodes
+    y: counts where agents came close but did not crash
+       values: too_close_counter
+
+graph_04: episodes where the agents crashed
+    x: episodes
+    y: time, when agents crashed
+    values: evaluation_agents_ran_into_each_other
+"""
+
+""" font manipulation for better proportions """
 matplotlib.rcParams.update({'font.size': 4})
 
 """ generate numpy-arrays """
@@ -36,92 +76,126 @@ np_evaluation_episode_time = np.asarray(evaluation_episode_time)
 np_evaluation_too_close_counter = np.asarray(evaluation_too_close_counter)
 np_evaluation_reward_tom = np.asarray(evaluation_reward_tom)
 np_evaluation_reward_jerry = np.asarray(evaluation_reward_jerry)
+np_evaluation_reward_roadrunner = np.asarray(evaluation_reward_roadrunner)
+np_evaluation_reward_coyote = np.asarray(evaluation_reward_coyote)
 np_evaluation_game_won_timestamp = np.asarray(evaluation_game_won_timestamp)
 np_evaluation_flag_captured_tom = np.asarray(evaluation_flag_captured_tom)
 np_evaluation_flag_captured_jerry = np.asarray(evaluation_flag_captured_jerry)
+np_evaluation_flag_captured_roadrunner = np.asarray(evaluation_flag_captured_roadrunner)
+np_evaluation_flag_captured_coyote = np.asarray(evaluation_flag_captured_coyote)
 np_evaluation_agents_ran_into_each_other = np.asarray(evaluation_agents_ran_into_each_other)
 np_evaluation_steps_tom = np.asarray(evaluation_steps_tom)
 np_evaluation_steps_jerry = np.asarray(evaluation_steps_jerry)
+np_evaluation_steps_roadrunner = np.asarray(evaluation_steps_roadrunner)
+np_evaluation_steps_coyote = np.asarray(evaluation_steps_coyote)
 
-""" set name of plot to not override it """
-random_name = time.strftime('%Y%m%d_%H_%M_%S', time.localtime())
+""" set name of plot to not overwrite it after every episode """
+individual_name = time.strftime('%Y%m%d_%H_%M_%S', time.localtime())
 
 """ make dir, if it doesn't already exist """
 os.makedirs(dirname, exist_ok=True)
 
 plt.title("Episode results")
 
-""" create dataframes """
+""" create dataframes for the plots """
 df_evaluation_episode_time = p.DataFrame({'x': np_evaluation_episode_time})
 df_evaluation_too_close_counter = p.DataFrame({'x': np_evaluation_too_close_counter})
 df_evaluation_agents_ran_into_each_other = p.DataFrame({'x': np_evaluation_agents_ran_into_each_other})
 df_evaluation_reward_tom = p.DataFrame({'x': np_evaluation_reward_tom})
 df_evaluation_reward_jerry = p.DataFrame({'x': np_evaluation_reward_jerry})
+df_evaluation_reward_roadrunner = p.DataFrame({'x': np_evaluation_reward_roadrunner})
+df_evaluation_reward_coyote = p.DataFrame({'x': np_evaluation_reward_coyote})
 df_evaluation_game_won_timestamp = p.DataFrame({'x': np_evaluation_game_won_timestamp})
 df_evaluation_flag_captured_tom = p.DataFrame({'x': np_evaluation_flag_captured_tom})
 df_evaluation_flag_captured_jerry = p.DataFrame({'x': np_evaluation_flag_captured_jerry})
+df_evaluation_flag_captured_roadrunner = p.DataFrame({'x': np_evaluation_flag_captured_roadrunner})
+df_evaluation_flag_captured_coyote = p.DataFrame({'x': np_evaluation_flag_captured_coyote})
 df_evaluation_steps_tom = p.DataFrame({'x': np_evaluation_steps_tom})
 df_evaluation_steps_jerry = p.DataFrame({'x': np_evaluation_steps_jerry})
+df_evaluation_steps_roadrunner = p.DataFrame({'x': np_evaluation_steps_roadrunner})
+df_evaluation_steps_coyote = p.DataFrame({'x': np_evaluation_steps_coyote})
 
 """ graph 1 """
-ax1 = plt.subplot2grid((2, 3), (0, 0), colspan=3)
+ax1 = plt.subplot2grid((4, 1), (0, 0), colspan=1)
 ax1.set_xlabel('episodes')
 ax1.set_ylabel('time in seconds')
-
 ax1.plot('x', 'y', data=df_evaluation_episode_time, marker='x', linestyle='-', color="red", alpha=0.8,
          label="relevant game time")
-ax1.plot('x', 'y', data=df_evaluation_game_won_timestamp, marker=',', linestyle='-', color="yellow", alpha=0.8,
+ax1.plot('x', 'y', data=df_evaluation_game_won_timestamp, marker='.', linestyle='-', color="yellow", alpha=0.8,
          label="relevant game won after x seconds")
-ax1.plot('x', 'y', data=df_evaluation_flag_captured_tom, marker=',', linestyle='-', color="cornflowerblue", alpha=0.8,
+ax1.plot('x', 'y', data=df_evaluation_flag_captured_tom, marker='.', linestyle='-', color="cornflowerblue",
+         alpha=0.8,
          label="timestamp tom captured the flag")
-ax1.plot('x', 'y', data=df_evaluation_flag_captured_jerry, marker=',', linestyle='-', color="springgreen", alpha=0.8,
+ax1.plot('x', 'y', data=df_evaluation_flag_captured_jerry, marker='.', linestyle='-', color="springgreen",
+         alpha=0.8,
          label="timestamp jerry captured the flag")
+ax1.plot('x', 'y', data=df_evaluation_flag_captured_roadrunner, marker='.', linestyle='-', color="cyan",
+         alpha=0.8,
+         label="timestamp roadrunner captured the flag")
+ax1.plot('x', 'y', data=df_evaluation_flag_captured_coyote, marker='.', linestyle='-', color="greenyellow",
+         alpha=0.8,
+          label="timestamp coyote captured the flag")
 ax1.plot('x', 'y', data=df_evaluation_steps_tom, marker='x', linestyle='-', color="mediumslateblue", alpha=0.8,
          label="number of actions tom")
-ax1.plot('x', 'y', data=df_evaluation_steps_jerry, marker=',', linestyle='-', color="aquamarine", alpha=0.8,
+ax1.plot('x', 'y', data=df_evaluation_steps_jerry, marker='.', linestyle='-', color="aquamarine", alpha=0.8,
          label="number of actions jerry")
-plt.legend(loc='best')
+ax1.plot('x', 'y', data=df_evaluation_steps_roadrunner, marker='x', linestyle='-', color="mediumpurple", alpha=0.8,
+         label="number of actions roadrunner")
+ax1.plot('x', 'y', data=df_evaluation_steps_coyote, marker='.', linestyle='-', color="mediumspringgreen", alpha=0.8,
+         label="number of actions coyote")
 locs, labels = xticks()
-xticks(np.arange(t), np_evaluation_episode_counter)
+xticks(np.arange(len(evaluation_episode_counter)), np_evaluation_episode_counter)
 ax11 = ax1.twiny()
-ax11.plot(range(t), np.ones(t))
+ax11.plot(range(len(evaluation_episode_counter)), np.ones(len(evaluation_episode_counter)))
 ax11.set_xlabel("winner of the episode")
 locs, labels = xticks()
-xticks(np.arange(t), evaluation_winner_agent)
+xticks(np.arange(len(evaluation_episode_counter)), evaluation_winner_agent)
 plt.grid(True)
+ax1.legend(loc='best')
 
 """ graph 2 """
-ax2 = plt.subplot2grid((2, 3), (1, 0), colspan=1)
+ax2 = plt.subplot2grid((4, 1), (1, 0), colspan=1)
 ax2.set_xlabel('episodes')
-ax2.set_ylabel('time_in_seconds')
-ax2.plot('x', 'y', data=df_evaluation_agents_ran_into_each_other, marker='_', linestyle=':', color="red", alpha=0.8,
-         label="time, agents ran into each other")
-plt.legend(loc='best')
+ax2.set_ylabel('reward')
+locs, labels = xticks()
+xticks(np.arange(len(evaluation_episode_counter)), np_evaluation_episode_counter)
+ax2.plot('x', 'y', data=df_evaluation_reward_tom, marker='.', linestyle='-', color="cornflowerblue", alpha=0.8,
+         label="reward tom")
+ax2.plot('x', 'y', data=df_evaluation_reward_jerry, marker='.', linestyle='-', color="springgreen", alpha=0.8,
+         label="reward jerry")
+ax2.plot('x', 'y', data=df_evaluation_reward_roadrunner, marker='.', linestyle='-', color="cyan", alpha=0.8,
+         label="reward roadrunner")
+ax2.plot('x', 'y', data=df_evaluation_reward_coyote, marker='.', linestyle='-', color="greenyellow", alpha=0.8,
+         label="reward coyote")
 plt.grid(True)
+ax2.legend(loc='best')
 
 """ graph 3 """
-ax3 = plt.subplot2grid((2, 3), (1, 1), colspan=1)
+ax3 = plt.subplot2grid((4, 1), (2, 0), colspan=1)
 ax3.set_xlabel('episodes')
 ax3.set_ylabel('#agents_were_close')
 locs, labels = xticks()
-xticks(np.arange(t), np_evaluation_episode_counter)
-ax3.plot('x', 'y', data=df_evaluation_too_close_counter, marker=',', linestyle='-', color="blue", alpha=0.8, label="number of close contacts per relevant episode")
-plt.legend(loc='best')
+xticks(np.arange(len(evaluation_episode_counter)), np_evaluation_episode_counter)
+ax3.plot('x', 'y', data=df_evaluation_too_close_counter, marker='.', linestyle='-', color="blue", alpha=0.8,
+         label="number of close contacts per relevant episode")
+ax3.legend(loc='best')
 plt.grid(True)
 
 """ graph 4 """
-ax4 = plt.subplot2grid((2, 3), (1, 2), colspan=1)
+ax4 = plt.subplot2grid((4, 1), (3, 0), colspan=1)
 ax4.set_xlabel('episodes')
-ax4.set_ylabel('reward')
-locs, labels = xticks()
-xticks(np.arange(t), np_evaluation_episode_counter)
-ax4.plot('x', 'y', data=df_evaluation_reward_tom, marker=',', linestyle='-', color="cornflowerblue", alpha=0.8, label="reward tom")
-ax4.plot('x', 'y', data=df_evaluation_reward_jerry, marker=',', linestyle='-', color="springgreen", alpha=0.8, label="reward jerry")
+ax4.set_ylabel('time_in_seconds')
+ax4.plot('x', 'y', data=df_evaluation_agents_ran_into_each_other, marker='_', linestyle=':', color="red", alpha=0.8,
+         label="mission length, bevore something crashed")
+ax4.legend(loc='best')
 plt.grid(True)
-plt.legend(loc='best')
 
 """ save the graph """
-plt.savefig(dirname +"/" + random_name + ".png", dpi=300)
+plt.savefig(dirname + "/" + "result_plot_" + individual_name + ".png", dpi=300)
 
+print("plot")
 """ show the graph """
 plt.show()
+
+print("go on")
+

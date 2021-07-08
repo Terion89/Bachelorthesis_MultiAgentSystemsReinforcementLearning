@@ -3,6 +3,8 @@ import logging
 import logger as logger
 import time
 
+from future.backports import socket
+
 from build.install.Python_Examples.chainer_dqn import DQN
 from build.install.Python_Examples.thesis_env_swarm_intelligence import ThesisEnvExperiment
 import argparse
@@ -76,6 +78,13 @@ if __name__ == '__main__':
     args.outdir = experiments.prepare_output_dir(
         args, args.outdir, argv=sys.argv)
     print('Output files are saved in {}'.format(args.outdir))
+
+    """ save-path for the evaluation-plot """
+    dirname = os.path.join(format(args.outdir), 'plots')
+    env.dirname = dirname
+
+    """ make dir, if it doesn't already exist """
+    os.makedirs(dirname, exist_ok=True)
 
     """ initialize clientpool and environment """
     client_pool = [('127.0.0.1', 10000), ('127.0.0.1', 10001), ('127.0.0.1', 10002), ('127.0.0.1', 10003),
@@ -216,9 +225,31 @@ if __name__ == '__main__':
                            save_best_so_far_agent=save_best_so_far_agent,
                            logger=logger,
                            )
+                           
+    evaluator3 = Evaluator(agent=roadrunner,
+                           n_steps=eval_n_steps,
+                           n_episodes=eval_n_episodes,
+                           eval_interval=eval_interval, outdir=outdir,
+                           max_episode_len=eval_max_episode_len,
+                           env=env,
+                           step_offset=step_offset,
+                           save_best_so_far_agent=save_best_so_far_agent,
+                           logger=logger,
+                           )
+                           
+    evaluator4 = Evaluator(agent=coyote,
+                           n_steps=eval_n_steps,
+                           n_episodes=eval_n_episodes,
+                           eval_interval=eval_interval, outdir=outdir,
+                           max_episode_len=eval_max_episode_len,
+                           env=env,
+                           step_offset=step_offset,
+                           save_best_so_far_agent=save_best_so_far_agent,
+                           logger=logger,
+                           )
     """
     """ 
-    # int r<>:                        initialisation of the reward per agent, starts at 0
+    # int r<>:                      initialisation of the reward per agent, starts at 0
     bool done<>:                    mission is running as long as 'done'-flag is false 
     int t:                          current step of episode, starts at 0
     int max_episode_len:            None, set at another point
@@ -241,6 +272,9 @@ if __name__ == '__main__':
 
     experiment_ID = ""
 
+    """ flag to turn on the group intern communication """
+    group_communication = False
+
     """ initial observation """
 
     obs1, obs2, obs3, obs4 = env.reset_world(experiment_ID, time_stamp_start, t)
@@ -257,7 +291,7 @@ if __name__ == '__main__':
                 """ current time to calculate the elapsed time """
                 time_stamp_current = time.time()
                 time_step = time_stamp_current - time_stamp_start
-                print("mission time up: %i sec" % (time_step))
+                print("mission time up: %i sec" % time_step)
 
                 """ calculate the next steps for the agents """
                 action1 = tom.act_and_train(obs1, r1)
@@ -268,7 +302,8 @@ if __name__ == '__main__':
                 """ check if agents would run into each other when they do the calculated step """
                 action1, action2, action3, action4 = env.approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2,
                                                                           obs3, obs4, r1, r2, r3, r4,
-                         action1, action2, action3, action4, time_step, t, experiment_ID)
+                                                                          action1, action2, action3, action4, time_step,
+                                                                          t, experiment_ID)
 
                 """ do calculated steps, check if they were executed and pass information of the time_step """
                 t_tom = t_jerry = t_roadrunner = t_coyote = 0
@@ -288,7 +323,7 @@ if __name__ == '__main__':
                         """ if the position does not change, the way is definitely blocked, so let's just go on """
                         env.command_executed_tom = True
                         break
-                        
+
                     env.overall_reward_agent_Tom += r1
                     print("Current Reward Tom:   ", env.overall_reward_agent_Tom)
 
@@ -308,7 +343,7 @@ if __name__ == '__main__':
                         """ if the position does not change, the way is definitely blocked, so let's just go on """
                         env.command_executed_jerry = True
                         break
-                    
+
                     env.overall_reward_agent_Jerry += r2
                     print("Current Reward Jerry: ", env.overall_reward_agent_Jerry)
 
@@ -323,17 +358,17 @@ if __name__ == '__main__':
                     obs3, r3, done3, info3 = env.step_generating(action3, 3)
                     print(env.r3)
                     env.command_executed_roadrunner = env.check_if_command_was_executed(3, time_step)
-                    t_roadrunner += 2
+                    t_roadrunner += 1
                     print("t_roadrunner: ", t_roadrunner)
                     if done3 or t_roadrunner == 20:
                         """ if the position does not change, the way is definitely blocked, so let's just go on """
                         env.command_executed_roadrunner = True
                         break
-                        
+
                     env.overall_reward_agent_roadrunner += r3
-                
+
                     print("Current Reward Roadrunner:   ", env.overall_reward_agent_Tom)
-                
+
                 while not env.command_executed_coyote:
                     world_state4 = env.agent_host4.peekWorldState()
                     """ checks, if world_state is read correctly, if not, trys again"""
@@ -342,7 +377,7 @@ if __name__ == '__main__':
                         print(".")
                         time.sleep(0.01)
                     env.x4_prev, y4, env.z4_prev = env.get_position_in_arena(world_state4, time_step, 4)
-                    obs4, r4, done4,  info4 = env.step_generating(action4, 4)
+                    obs4, r4, done4, info4 = env.step_generating(action4, 4)
                     env.command_executed_coyote = env.check_if_command_was_executed(4, time_step)
                     t_coyote += 1
                     print("t_coyote: ", t_coyote)
@@ -350,11 +385,11 @@ if __name__ == '__main__':
                         """ if the position does not change, the way is definitely blocked, so let's just go on """
                         env.command_executed_coyote = True
                         break
-                
+
                     env.overall_reward_agent_coyote += r4
 
                     print("Current Reward Coyote: ", env.overall_reward_agent_Jerry)
-                    
+
                 print("Current Reward Tom:   ", env.overall_reward_agent_Tom)
                 print("Current Reward Jerry: ", env.overall_reward_agent_Jerry)
                 print("Current Reward Roadrunner:   ", env.overall_reward_agent_Tom)
@@ -382,8 +417,8 @@ if __name__ == '__main__':
 
                     """ send mission QuitCommands to tell Malmo that the mission has ended,save and reset everything """
                     t, obs1, obs2, r1, r2, obs3, obs4, r3, r4, env.done_team01, \
-                        env.done_team02, env.overall_reward_agent_Jerry, env.overall_reward_agent_Tom, \
-                        env.overall_reward_agent_roadrunner, env.overall_reward_agent_coyote = \
+                    env.done_team02, env.overall_reward_agent_Jerry, env.overall_reward_agent_Tom, \
+                    env.overall_reward_agent_roadrunner, env.overall_reward_agent_coyote = \
                         env.sending_mission_quit_commands(env.overall_reward_agent_Tom, env.overall_reward_agent_Jerry,
                                                           env.overall_reward_agent_roadrunner,
                                                           env.overall_reward_agent_coyote,
@@ -402,10 +437,10 @@ if __name__ == '__main__':
 
         except (Exception, KeyboardInterrupt):
             # Save the current model before being killed
-            save_agent(tom, t, outdir, logger, suffix='_except01')
-            save_agent(jerry, t, outdir, logger, suffix='_except02')
-            save_agent(roadrunner, t, outdir, logger, suffix='_except03')
-            save_agent(coyote, t, outdir, logger, suffix='_except04')
+            save_agent(tom, t, outdir, logger, suffix='exception_agent_tom')
+            save_agent(jerry, t, outdir, logger, suffix='exception_agent_jerry')
+            save_agent(roadrunner, t, outdir, logger, suffix='exception_agent_roadrunner')
+            save_agent(coyote, t, outdir, logger, suffix='exception_agent_coyote')
 
             """ Reset clients to speed up the following episodes. Otherwise the Minecraft client would get slow."""
 

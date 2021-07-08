@@ -15,8 +15,8 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
              evaluation_reward_roadrunner, evaluation_reward_coyote,
              evaluation_winner_agent, evaluation_game_won_timestamp, evaluation_flag_captured_tom,
              evaluation_flag_captured_jerry, evaluation_flag_captured_roadrunner,
-             evaluation_flag_captured_coyote,evaluation_agents_ran_into_each_other, dirname, evaluation_steps_tom,
-             evaluation_steps_jerry, evaluation_steps_roadrunner, evaluation_steps_coyote):
+             evaluation_flag_captured_coyote, evaluation_agents_ran_into_each_other, evaluation_steps_tom,
+             evaluation_steps_jerry, evaluation_steps_roadrunner, evaluation_steps_coyote, dirname):
     """
     graph plots to visualize the result
     available data:
@@ -33,22 +33,27 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     dirname: place to save the plots
 
 
-    graph_01: episodes where somebody won the game
+    raph_01: episodes where somebody won the game
         x: episodes
         y: time in sec
            values: overall time, flag_captured_<name>, game_won_timestep + who won
 
     graph_02: episodes where somebody won the game
         x: episodes
+        y: time in sec
+           values: number of steps per agent
+
+    graph_03: episodes where somebody won the game
+        x: episodes
         y: reward
            values: rewards of all agents
 
-    graph_03: episodes where somebody won the game
+    graph_04: episodes where somebody won the game
         x: episodes
         y: counts where agents came close but did not crash
            values: too_close_counter
 
-    graph_04: episodes where the agents crashed
+    graph_05: episodes where the agents crashed
         x: episodes
         y: time, when agents crashed
         values: evaluation_agents_ran_into_each_other
@@ -77,7 +82,7 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     np_evaluation_steps_coyote = np.asarray(evaluation_steps_coyote)
 
     """ set name of plot to not overwrite it after every episode """
-    individual_name = time.strftime('%Y%m%d_%H_%M_%S', time.localtime())
+    # individual_name = time.strftime('%Y%m%d_%H_%M_%S', time.localtime())
 
     """ make dir, if it doesn't already exist """
     os.makedirs(dirname, exist_ok=True)
@@ -103,7 +108,7 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     df_evaluation_steps_coyote = p.DataFrame({'x': np_evaluation_steps_coyote})
 
     """ graph 1 """
-    ax1 = plt.subplot2grid((4, 1), (0, 0), colspan=1)
+    ax1 = plt.subplot2grid((5, 1), (0, 0), colspan=1)
     ax1.set_xlabel('episodes')
     ax1.set_ylabel('time in seconds')
     ax1.plot('x', 'y', data=df_evaluation_episode_time, marker='x', linestyle='-', color="red", alpha=0.8,
@@ -121,27 +126,38 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
              label="timestamp roadrunner captured the flag")
     ax1.plot('x', 'y', data=df_evaluation_flag_captured_coyote, marker='.', linestyle='-', color="greenyellow",
              alpha=0.8,
-              label="timestamp coyote captured the flag")
-    ax1.plot('x', 'y', data=df_evaluation_steps_tom, marker='x', linestyle='-', color="mediumslateblue", alpha=0.8,
-             label="number of actions tom")
-    ax1.plot('x', 'y', data=df_evaluation_steps_jerry, marker='.', linestyle='-', color="aquamarine", alpha=0.8,
-             label="number of actions jerry")
-    ax1.plot('x', 'y', data=df_evaluation_steps_roadrunner, marker='x', linestyle='-', color="mediumpurple", alpha=0.8,
-             label="number of actions roadrunner")
-    ax1.plot('x', 'y', data=df_evaluation_steps_coyote, marker='.', linestyle='-', color="mediumspringgreen", alpha=0.8,
-             label="number of actions coyote")
+             label="timestamp coyote captured the flag")
     locs, labels = xticks()
     xticks(np.arange(len(evaluation_episode_counter)), np_evaluation_episode_counter)
     ax11 = ax1.twiny()
     ax11.plot(range(len(evaluation_episode_counter)), np.ones(len(evaluation_episode_counter)))
     ax11.set_xlabel("winner of the episode")
-    locs, labels = xticks()
     xticks(np.arange(len(evaluation_episode_counter)), evaluation_winner_agent)
     plt.grid(True)
     ax1.legend(loc='best')
 
-    """ graph 2 """
-    ax2 = plt.subplot2grid((4, 1), (1, 0), colspan=1)
+    """ graph 2"""
+    ax5 = plt.subplot2grid((5, 1), (1, 0), colspan=1)
+    ax5.set_xlabel('episodes')
+    ax5.set_ylabel('number of steps')
+
+    ax5.plot('x', 'y', data=df_evaluation_steps_tom, marker='x', linestyle='-', color="mediumslateblue", alpha=0.8,
+             label="steps tom")
+    ax5.plot('x', 'y', data=df_evaluation_steps_jerry, marker='.', linestyle='-', color="aquamarine", alpha=0.8,
+             label="steps jerry")
+    ax5.plot('x', 'y', data=df_evaluation_steps_roadrunner, marker='x', linestyle='-', color="mediumpurple", alpha=0.8,
+             label="steps roadrunner")
+    ax5.plot('x', 'y', data=df_evaluation_steps_coyote, marker='.', linestyle='-', color="mediumspringgreen", alpha=0.8,
+             label="steps coyote")
+    locs, labels = xticks()
+    xticks(np.arange(len(evaluation_episode_counter)), np_evaluation_episode_counter)
+    ax55 = ax5.twiny()
+    ax55.plot(range(len(evaluation_episode_counter)), np.ones(len(evaluation_episode_counter)))
+    plt.grid(True)
+    ax5.legend(loc='best')
+
+    """ graph 3 """
+    ax2 = plt.subplot2grid((5, 1), (2, 0), colspan=1)
     ax2.set_xlabel('episodes')
     ax2.set_ylabel('reward')
     locs, labels = xticks()
@@ -158,7 +174,7 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     ax2.legend(loc='best')
 
     """ graph 3 """
-    ax3 = plt.subplot2grid((4, 1), (2, 0), colspan=1)
+    ax3 = plt.subplot2grid((5, 1), (3, 0), colspan=1)
     ax3.set_xlabel('episodes')
     ax3.set_ylabel('#agents_were_close')
     locs, labels = xticks()
@@ -169,20 +185,19 @@ def evaluate(t, evaluation_episode_counter, evaluation_episode_time,
     plt.grid(True)
 
     """ graph 4 """
-    ax4 = plt.subplot2grid((4, 1), (3, 0), colspan=1)
+    ax4 = plt.subplot2grid((5, 1), (4, 0), colspan=1)
     ax4.set_xlabel('episodes')
     ax4.set_ylabel('time_in_seconds')
     ax4.plot('x', 'y', data=df_evaluation_agents_ran_into_each_other, marker='_', linestyle=':', color="red", alpha=0.8,
-             label="mission length, bevore something crashed")
+             label="mission length, before something crashed")
     ax4.legend(loc='best')
     plt.grid(True)
 
     """ save the graph """
-    plt.savefig(dirname + "/" + "result_plot_" + individual_name + ".png", dpi=300)
+    plt.savefig(dirname + "/" + "result_plot.png", dpi=600)  # + individual_name
 
     print("plot")
     """ show the graph """
-    #plt.show()
+    # plt.show()
 
     print("go on")
-

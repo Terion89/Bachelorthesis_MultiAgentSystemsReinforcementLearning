@@ -169,7 +169,7 @@ class ThesisEnvExperiment(gym.Env):
 
     def init(self, client_pool=None, start_minecraft=None,
              continuous_discrete=True, add_noop_command=None,
-             max_retries=90, retry_sleep=10, step_sleep=0.001, skip_steps=0,
+             max_retries=150, retry_sleep=10, step_sleep=0.001, skip_steps=0,
              videoResolution=None, videoWithDepth=None,
              observeRecentCommands=None, observeHotBar=None,
              observeFullInventory=None, observeGrid=None,
@@ -660,14 +660,15 @@ class ThesisEnvExperiment(gym.Env):
                 break
             except RuntimeError as e:
                 if retry == self.max_retries:
-                    logger.error("Error starting mission: " + str(e))
+                    logger.error("Max_retries reached - error starting mission: " + str(e))
                     raise
                 else:
                     logger.warning("Error starting mission: " + str(e))
-                    logger.info("Sleeping for %d seconds...", self.retry_sleep)
-                    time.sleep(self.retry_sleep)
+                    random_wait_time_startup = self.retry_sleep + self.random_timer()
+                    logger.info("Sleeping for %d seconds...", random_wait_time_startup)
+                    time.sleep(random_wait_time_startup)
 
-        logger.info("Waiting for the mission to start.")
+        logger.info("Waiting for the agents to send worldstates.")
         world_state1 = self.agent_host1.getWorldState()
         world_state2 = self.agent_host2.getWorldState()
         world_state3 = self.agent_host3.getWorldState()
@@ -826,7 +827,7 @@ class ThesisEnvExperiment(gym.Env):
         saves the round number in results.txt
         """
         datei = open(self.dirname + "/" + 'results.txt', 'a')
-        datei.write("-------------- ROUND %i --------------\n" % t)
+        datei.write("\n-------------- ROUND %i --------------\n" % t)
         time_start = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
         datei.write("starts at: %s" % time_start)
         datei.close()
@@ -1616,8 +1617,8 @@ class ThesisEnvExperiment(gym.Env):
         """ fetch the current cells """
         self.get_current_cell_agents()
 
-        if (self.flag_captured_tom and (12 <= x1 <= 15 and 0 <= z1 <= 4)) or self.flag_captured_roadrunner and \
-                (12 <= x3 <= 15 and 0 <= z3 <= 4):
+        if (self.flag_captured_tom and (7 <= x1 <= 10 and 0 <= z1 <= 4)) or self.flag_captured_roadrunner and \
+                (7 <= x3 <= 10 and 0 <= z3 <= 4):
             """ 
             if agent reached the target area:
             look down, set block, jump on it to reach wanted position and win the game 
@@ -1647,6 +1648,8 @@ class ThesisEnvExperiment(gym.Env):
                     """ as long as there is a false flag in the inventory, place it back """
                     while inventory_string_tom.find('quartz') != -1:
                         print(json.dumps(inventory_string_tom.find('quartz')) != -1)
+                        time.sleep(1)
+                        self.agent_host1.sendCommand('move 1')
                         self.agent_host1.sendCommand('use 1')
                         time.sleep(1)
                         world_state1 = self.agent_host1.peekWorldState()
@@ -1672,6 +1675,8 @@ class ThesisEnvExperiment(gym.Env):
                     """ as long as there is a false flag in the inventory, place it back """
                     while inventory_string_roadrunner.find('quartz') != -1:
                         print(json.dumps(inventory_string_roadrunner.find('quartz') != -1))
+                        time.sleep(1)
+                        self.agent_host3.sendCommand('move 1')
                         self.agent_host3.sendCommand('use 1')
                         time.sleep(1)
                         world_state3 = self.agent_host3.peekWorldState()
@@ -1703,8 +1708,8 @@ class ThesisEnvExperiment(gym.Env):
                         "----------------------------------------------------------------Roadrunner captured the flag after %i seconds!" % (
                             time_step))
 
-        if (self.flag_captured_jerry and (0 <= x2 <= 4 and 10 <= z2 <= 15)) or \
-                (self.flag_captured_coyote and (0 <= x4 <= 4 and 10 <= z4 <= 15)):
+        if (self.flag_captured_jerry and (0 <= x2 <= 3 and 7 <= z2 <= 10)) or \
+                (self.flag_captured_coyote and (0 <= x4 <= 3 and 7 <= z4 <= 10)):
             """ 
             if agent reached the target area:
             look down, set block, jump on it to reach wanted position and win the game 
@@ -1733,6 +1738,8 @@ class ThesisEnvExperiment(gym.Env):
                     """ as long as there is a false flag in the inventory, place it back """
                     while inventory_string_jerry.find('log') != -1:
                         print(json.dumps(inventory_string_jerry.find('log') != -1))
+                        time.sleep(1)
+                        self.agent_host2.sendCommand('move 1')
                         self.agent_host2.sendCommand('use 1')
                         time.sleep(1)
                         world_state2 = self.agent_host2.peekWorldState()
@@ -1757,6 +1764,8 @@ class ThesisEnvExperiment(gym.Env):
 
                     """ as long as there is a false flag in the inventory, place it back """
                     while inventory_string_coyote.find('log') != -1:
+                        time.sleep(1)
+                        self.agent_host4.sendCommand('move 1')
                         self.agent_host4.sendCommand('use 1')
                         time.sleep(1)
                         world_state4 = self.agent_host4.peekWorldState()

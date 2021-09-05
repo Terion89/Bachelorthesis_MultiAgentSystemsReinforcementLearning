@@ -1646,11 +1646,15 @@ class ThesisEnvExperiment(gym.Env):
                     time.sleep(0.1)
 
                     """ as long as there is a false flag in the inventory, place it back """
+                    counter = 0
                     while inventory_string_tom.find('quartz') != -1:
                         print(json.dumps(inventory_string_tom.find('quartz')) != -1)
                         time.sleep(1)
-                        self.agent_host1.sendCommand('move 1')
                         self.agent_host1.sendCommand('use 1')
+                        self.agent_host1.sendCommand('move 1')
+                        counter += 1
+                        if counter == 5:
+                            self.agent_host1.sendCommand('move -1')
                         time.sleep(1)
                         world_state1 = self.agent_host1.peekWorldState()
                         msg1 = world_state1.observations[-1].text
@@ -1673,11 +1677,15 @@ class ThesisEnvExperiment(gym.Env):
                     time.sleep(0.3)
 
                     """ as long as there is a false flag in the inventory, place it back """
+                    counter = 0
                     while inventory_string_roadrunner.find('quartz') != -1:
                         print(json.dumps(inventory_string_roadrunner.find('quartz') != -1))
                         time.sleep(1)
-                        self.agent_host3.sendCommand('move 1')
                         self.agent_host3.sendCommand('use 1')
+                        self.agent_host3.sendCommand('move 1')
+                        counter += 1
+                        if counter == 5:
+                            self.agent_host3.sendCommand('move -1')
                         time.sleep(1)
                         world_state3 = self.agent_host3.peekWorldState()
                         msg3 = world_state3.observations[-1].text
@@ -1736,11 +1744,15 @@ class ThesisEnvExperiment(gym.Env):
                     time.sleep(0.3)
 
                     """ as long as there is a false flag in the inventory, place it back """
+                    counter = 0
                     while inventory_string_jerry.find('log') != -1:
                         print(json.dumps(inventory_string_jerry.find('log') != -1))
                         time.sleep(1)
-                        self.agent_host2.sendCommand('move 1')
                         self.agent_host2.sendCommand('use 1')
+                        self.agent_host2.sendCommand('move 1')
+                        counter += 1
+                        if counter == 5:
+                            self.agent_host2.sendCommand('move -1')
                         time.sleep(1)
                         world_state2 = self.agent_host2.peekWorldState()
                         msg2 = world_state2.observations[-1].text
@@ -1763,10 +1775,14 @@ class ThesisEnvExperiment(gym.Env):
                     time.sleep(0.3)
 
                     """ as long as there is a false flag in the inventory, place it back """
+                    counter = 0
                     while inventory_string_coyote.find('log') != -1:
                         time.sleep(1)
-                        self.agent_host4.sendCommand('move 1')
                         self.agent_host4.sendCommand('use 1')
+                        self.agent_host4.sendCommand('move 1')
+                        counter += 1
+                        if counter == 5:
+                            self.agent_host4.sendCommand('move -1')
                         time.sleep(1)
                         world_state4 = self.agent_host4.peekWorldState()
                         msg4 = world_state4.observations[-1].text

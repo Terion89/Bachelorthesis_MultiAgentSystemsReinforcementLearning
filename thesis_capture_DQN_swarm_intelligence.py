@@ -17,7 +17,7 @@ import MalmoPython
 from observer import OBSERVER
 from thesis.chainerrl.chainerrl import experiments
 from thesis.chainerrl.chainerrl import misc
-from thesis.chainerrl.chainerrl.experiments.evaluator import save_agent
+from thesis.chainerrl.chainerrl.experiments.evaluator import save_agent, load_agent
 
 if sys.version_info[0] == 2:
     pass
@@ -30,10 +30,10 @@ if __name__ == '__main__':
     env = ThesisEnvExperiment()
 
     """ define some useful parameters to separate the agents """
-    num_01 = 1  # Agent number 1
-    num_02 = 2  # Agent number 2
-    num_03 = 3  # Agent number 3
-    num_04 = 4  # Agent number 4
+    num_01 = 1  # Agent number 1: Tom
+    num_02 = 2  # Agent number 2: Jerry
+    num_03 = 3  # Agent number 3: Roadrunner
+    num_04 = 4  # Agent number 4: Coyote
 
     overall_reward_agent_Tom = 0
     overall_reward_agent_Jerry = 0
@@ -75,6 +75,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # misc.set_random_seed(args.seed, gpus=(args.gpu,))
+    outdir_loadable = args.outdir
     args.outdir = experiments.prepare_output_dir(
         args, args.outdir, argv=sys.argv)
     print('Output files are saved in {}'.format(args.outdir))
@@ -111,7 +112,6 @@ if __name__ == '__main__':
             (args.render_train and not test)):
         env = chainerrl.wrappers.Render(env)
 
-    timestep_limit = 9000
     obs_space = env.observation_space
     obs_size = obs_space.low.size
     action_space = env.action_space
@@ -190,64 +190,15 @@ if __name__ == '__main__':
     eval_n_episodes = args.eval_n_runs
     eval_interval = args.eval_interval
     outdir = args.outdir
-    train_max_episode_len = timestep_limit
     logger = logger or logging.getLogger(__name__)
 
     step_offset = 1
-    eval_max_episode_len = None
     successful_score = None
     step_hooks = ()
     save_best_so_far_agent = True
 
     os.makedirs(outdir, exist_ok=True)
 
-    eval_max_episode_len = train_max_episode_len
-
-    """ evaluator to save best so far agent ---  WIP
-    evaluator1 = Evaluator(agent=tom,
-                           n_steps=eval_n_steps,
-                           n_episodes=eval_n_episodes,
-                           eval_interval=eval_interval, outdir=outdir,
-                           max_episode_len=eval_max_episode_len,
-                           env=env,
-                           step_offset=step_offset,
-                           save_best_so_far_agent=save_best_so_far_agent,
-                           logger=logger,
-                           )
-
-    evaluator2 = Evaluator(agent=jerry,
-                           n_steps=eval_n_steps,
-                           n_episodes=eval_n_episodes,
-                           eval_interval=eval_interval, outdir=outdir,
-                           max_episode_len=eval_max_episode_len,
-                           env=env,
-                           step_offset=step_offset,
-                           save_best_so_far_agent=save_best_so_far_agent,
-                           logger=logger,
-                           )
-                           
-    evaluator3 = Evaluator(agent=roadrunner,
-                           n_steps=eval_n_steps,
-                           n_episodes=eval_n_episodes,
-                           eval_interval=eval_interval, outdir=outdir,
-                           max_episode_len=eval_max_episode_len,
-                           env=env,
-                           step_offset=step_offset,
-                           save_best_so_far_agent=save_best_so_far_agent,
-                           logger=logger,
-                           )
-                           
-    evaluator4 = Evaluator(agent=coyote,
-                           n_steps=eval_n_steps,
-                           n_episodes=eval_n_episodes,
-                           eval_interval=eval_interval, outdir=outdir,
-                           max_episode_len=eval_max_episode_len,
-                           env=env,
-                           step_offset=step_offset,
-                           save_best_so_far_agent=save_best_so_far_agent,
-                           logger=logger,
-                           )
-    """
     """ 
     # int r<>:                      initialisation of the reward per agent, starts at 0
     bool done<>:                    mission is running as long as 'done'-flag is false 
@@ -276,12 +227,14 @@ if __name__ == '__main__':
     group_communication = False
 
     """ initial observation """
-
     obs1, obs2, obs3, obs4 = env.reset_world(experiment_ID, time_stamp_start, t)
     r1 = r2 = r3 = r4 = 0
 
     """ save new episode start into result.txt """
     env.save_new_round(t)
+
+    """ load the models of the agents from previous experiments """
+    load_agent(tom, jerry, roadrunner, coyote, outdir_loadable=outdir_loadable)
 
     """ start training episodes """
     while t < steps:
@@ -291,7 +244,7 @@ if __name__ == '__main__':
                 """ current time to calculate the elapsed time """
                 time_stamp_current = time.time()
                 time_step = time_stamp_current - time_stamp_start
-                print("mission time up: %i sec" % time_step)
+                print("mission time up: %i seconds" % time_step)
 
                 """ calculate the next steps for the agents """
                 action1 = tom.act_and_train(obs1, r1)
@@ -309,6 +262,7 @@ if __name__ == '__main__':
                 t_tom = t_jerry = t_roadrunner = t_coyote = 0
                 while not env.command_executed_tom:
                     world_state1 = env.agent_host1.peekWorldState()
+
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state1.number_of_observations_since_last_state == 0:
                         world_state1 = env.agent_host1.peekWorldState()
@@ -402,6 +356,21 @@ if __name__ == '__main__':
                     hook(env, roadrunner, t)
                     hook(env, coyote, t)
 
+                """ check, if any agent looks down or up and correct it"""
+                """looks_straight = False
+                print("Check, if the agents are focused or looking around:")
+                while not looks_straight:
+                    ls1 = env.check_if_agent_looks_straight(1)
+                    ls2 = env.check_if_agent_looks_straight(2)
+                    ls3 = env.check_if_agent_looks_straight(3)
+                    ls4 = env.check_if_agent_looks_straight(4)
+
+                    if ls1 == False or ls2 == False or ls3 == False or ls4 == False:
+                        looks_straight = False
+                    else:
+                        looks_straight = True
+                        print("Everyone is focused.")"""
+
                 """ check, if an agent captured the flag """
                 env.check_inventory(time_step, t, experiment_ID)
 
@@ -423,12 +392,16 @@ if __name__ == '__main__':
                                                           env.overall_reward_agent_roadrunner,
                                                           env.overall_reward_agent_coyote,
                                                           time_step, obs1, r1, obs2, r2, obs3,
-                                                          r3, obs4, r4, outdir, t,
+                                                          r3, obs4, r4, outdir, outdir_loadable, t,
                                                           tom, jerry, roadrunner, coyote, experiment_ID)
 
+                    """ load the models of the agents from the previous episode to evolve the agents """
+                    load_agent(tom, jerry, roadrunner, coyote, outdir_loadable=outdir_loadable)
+
+                    """ new start-time for the next episode """
                     time_stamp_start = time.time()
 
-                    """ recover """
+                    """ let the Malmo Mod recover """
                     time.sleep(2)
 
                 if t == 1001:
@@ -437,11 +410,10 @@ if __name__ == '__main__':
 
         except (Exception, KeyboardInterrupt):
             # Save the current model before being killed
-            save_agent(tom, t, outdir, logger, suffix='exception_agent_tom')
-            save_agent(jerry, t, outdir, logger, suffix='exception_agent_jerry')
-            save_agent(roadrunner, t, outdir, logger, suffix='exception_agent_roadrunner')
-            save_agent(coyote, t, outdir, logger, suffix='exception_agent_coyote')
+            save_agent(tom, t, outdir, outdir_loadable, logger, suffix='exception_agent_tom')
+            save_agent(jerry, t, outdir, outdir_loadable, logger, suffix='exception_agent_jerry')
+            save_agent(roadrunner, t, outdir, outdir_loadable, logger, suffix='exception_agent_roadrunner')
+            save_agent(coyote, t, outdir, outdir_loadable, logger, suffix='exception_agent_coyote')
 
-            """ Reset clients to speed up the following episodes. Otherwise the Minecraft client would get slow."""
 
             raise

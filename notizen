@@ -1,0 +1,69 @@
+Notizen zum in LaTex übertragen:
+Begriffserklärungen:
+GUI
+
+Socket https://www.ibm.com/docs/en/zos/2.1.0?topic=services-what-is-socket
+Ein Socket beschreibt den Zusammenschluss aus IP-Adresse und Port.
+Im übertragenen Sinn ist ein Socket die Adresse eines Hauses und ein Port ein Element dieser Adresse, 
+zB. die Hausnummer. https://www.computerweekly.com/de/antwort/Was-ist-der-Unterschied-zwischen-Socket-Port-und-Portnummer
+
+Port, Portnummer
+Ein Port kann physischer und logischer Natur sein.
+Ist er physisch, beschreibt er ein Hardwareelement, zB. eine USB Buchse, über die ein externes Gerät mit der Haupthardware verbunden werden kann.
+Im Netzwerkbereich ist ein Port die logische Verbindung von zwei Endpunkten, über die eine Verbindung
+hergestellt werden kann.
+Die beiden Endpunkte besitzen jeweils eine Portnummer.
+https://www.computerweekly.com/de/antwort/Was-ist-der-Unterschied-zwischen-Socket-Port-und-Portnummer
+
+TCPNoDelay
+
+Broadcast
+
+
+Abschnitt - Netzwerkverbindungen in Malmo
+
+[....]
+Mit launchclient.sh werden die Minecraft Instanzen der einzelnen Agenten 
+unabhängig auf der Kommandozeile gestartet. 
+Diese sind die sogenannten Clients, in deren GUI die Aktionen der Agenten sichtbar sind.
+Zudem gibt es einen Minecraft Server, dessen Aufgabe darin besteht,
+die Informationen, die die einzelnen Clients sammeln, zu bündeln und mit allen Clients zu teilen.
+Der Server ist nicht eigenständig, sondern im zuerst gestarteten Client integriert, 
+dieser wird im folgenden Role-0-Leader genannt.
+Somit nehmen ein Server mit integriertem Client und vier weitere Clients an den Experimenten teil.
+Im Python Code werden die Clients über sogenannte ageht_hosts angesteuert.
+Jeder Client entspricht einem agent_host:
+Client 0 wird von agent_host0 gesteuert. Die Bezeichnung des zu grunde liegenden Agenten ist "Skye". 
+Hier ist der Minecraft Server integriert.
+Client 1 wird von agent_host1 gelenkt und simuliert den Agenten "Tom".
+Client 2 wird über den agent_host2 angesprochen, der Agent trägt den Namen "Jerry".
+Client 3 wird von agent_host3 mit dem Agenten "Roadrunner" genutzt und 
+Client 4 wird über den agent_host4 angesprochen, dessen Agent "Coyote" genannt wird.
+Die Namen der Agenten sind frei wählbar und dienen einzig der leichteren Unterscheidung
+der Akteure in der GUI Anzeige während den Experimenten.
+Jeder Client besetzt fünf zu Beginn des Experiments zugewiesene IP Adressen, über deren zugehörige Portnummer Informationen in TCP Paketen
+über die agent_hosts an einen Socket des Python Codes zur Verarbeitung gesendet werden.
+Dies sind der Videostream, die Informationen im Worldstate, 3, 4 und 5.
+Diese Verarbeitung stellt das Bottleneck der Anwendung dar, da alle Informationen in diesem einen Socket zusammenlaufen.
+Werden die Pakete zu schnell frequentiert geschickt, gehen Pakete verloren. 
+Dies äußert sich beispielsweise, indem ein Agent seinen berechneten Schritt nicht ausführt, da der Befehl dazu
+nicht bei ihm ankommt.
+Der Nagle Algorithmus wurde von John Nagle entwickelt. 
+(https://www.extrahop.com/company/blog/2016/tcp-nodelay-nagle-quickack-best-practices/) 
+Er beschreibt ein Verfahren, bei dem verhindert wird, dass viele kleine TCP Pakete über ein IP-Netz
+versendet werden. Dies erhöht die Effizienz der Übertragung, da jedes TCP Paket zusätzlich einen eigenständigen Header haben muss und
+die Datenübertragungsrate durch viele Kleinstpakete stark belastet wird. (https://www.itwissen.info/Nagle-Algorithmus-Nagle-algorithm.html)
+
+Um das oben beschriebene Fehlverhalten zu minimieren, wurde TCPNoDelay aktiviert und der Nagle Algorithmus damit ausser Kraft gesetzt.
+Somit werden TCP Pakete sofort losgeschickt und nicht in gesammelten Paketen.
+
+Nachdem die Informationen im Pyhon Code verarbeitet wurden, werden die Ergebnisse wieder an den jeweiligen Client geschickt.
+In Diesem Experiment wird die nächste Aktion des Agenten aus den aktuellen Videostreams der Agenten berechnet und zurück an den Client-Socket
+gesendet, sodass der Agent dieses Clients die Aktion ausführen kann.
+Nachdem der Schritt oder die Drehung ausgeführt wurde, befindet sich der Agent in einem neuen Zustand.
+Diesen liest er als Worlstate aus der Spielumgebung aus und übermittelt ihn an den Role-0-Leader Server.
+Dort werden alle relevanten Daten über die Position und die vorangegangene Interaktion der Agenten in und mit der Spielwelt gesammelt
+und per UDP Broadcast an alle anderen Agenten verteilt, um sie zu updaten.
+Diese schleife der Datenübermittlung und -verarbeitung wird kontinuierlich fortgeführt, bis das Experiment beendet ist.
+
+

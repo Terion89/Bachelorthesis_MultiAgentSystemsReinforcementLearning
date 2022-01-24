@@ -1,8 +1,16 @@
 Notizen zum in LaTex übertragen:
 Begriffserklärungen:
-GUI
+GUI 
+https://www.dev-insider.de/was-ist-eine-gui-a-651868/
+Diese Abkürzung steht für "Graphical User Interface" und beschreibt die für den Benutzer sichtbare grafische Oberfläche.
+Sie schafft somit eine Schnittstelle zwischen der Software und dem Menschen.
+Letzterer kann durch die GUI mit der Maschine interagieren.
+Solche grafischen Schnittstellen werden seit Ende der 1960er Jahre angewendet, um dem User eine möglichst einfache Form der Kontrolle
+zu geben. Damals waren die Maus, der Cursor und die Tastatur die geläufigsten Bedienelemente, heute werden die Benutzeroberflächen
+mit Gesten, Wischbewegungen auf einem Touchscreen oder per Spachbefehlen bedient.
 
-Socket https://www.ibm.com/docs/en/zos/2.1.0?topic=services-what-is-socket
+Socket 
+https://www.ibm.com/docs/en/zos/2.1.0?topic=services-what-is-socket
 Ein Socket beschreibt den Zusammenschluss aus IP-Adresse und Port.
 Im übertragenen Sinn ist ein Socket die Adresse eines Hauses und ein Port ein Element dieser Adresse, 
 zB. die Hausnummer. https://www.computerweekly.com/de/antwort/Was-ist-der-Unterschied-zwischen-Socket-Port-und-Portnummer
@@ -17,7 +25,18 @@ https://www.computerweekly.com/de/antwort/Was-ist-der-Unterschied-zwischen-Socke
 
 TCPNoDelay
 
-Broadcast
+Broadcast 
+https://www.itwissen.info/Broadcasting-broadcast-BC.html
+Unter einem Broadcast wird die unidirektionale, gleichzeitige Übertragung von Daten an mehrere Empfänger verstanden.
+Ein Sender übermittelt identische Daten an beliebig viele andere Teilnehmer, den Empfängern, in diesem Netzwerk, 
+ohne eine Rückantwort zu erhalten.
+Diese Art der Datenübertragung wird "Enhanced Broadcast" genannt.
+Eine andere Variante ist der "Interactive Broadcast", bei dem ein Rückkanal zur Interaktion zwischen Sender und Empfänger existiert.
+Andere Übertragungsarten sind der Unicast, bei dem von genau einem Sender zu genau einem Empfänger übertragen wird,
+der Anycast, bei dem ein empfangender Akteur von mehreren Sendenen Daten erhält und 
+der Multicast, in dessen Rahmen 
+von einem Sender an eine festgelegte Gruppe von Empfängern übertragen wird.
+
 
 
 Abschnitt - Netzwerkverbindungen in Malmo
@@ -65,5 +84,5 @@ Diesen liest er als Worlstate aus der Spielumgebung aus und übermittelt ihn an 
 Dort werden alle relevanten Daten über die Position und die vorangegangene Interaktion der Agenten in und mit der Spielwelt gesammelt
 und per UDP Broadcast an alle anderen Agenten verteilt, um sie zu updaten.
 Diese schleife der Datenübermittlung und -verarbeitung wird kontinuierlich fortgeführt, bis das Experiment beendet ist.
-
+[...]
 

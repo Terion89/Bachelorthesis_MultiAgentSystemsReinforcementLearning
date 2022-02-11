@@ -227,11 +227,11 @@ if __name__ == '__main__':
     group_communication = False
 
     """ initial observation """
-    obs1, obs2, obs3, obs4 = env.reset_world(experiment_ID, time_stamp_start, t)
+    obs1, obs2, obs3, obs4 = env.reset_world(t, overall_reward_agent_Tom,
+                                             overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                             overall_reward_agent_coyote, time_stamp_start, experiment_ID)
     r1 = r2 = r3 = r4 = 0
-
-    """ save new episode start into result.txt """
-    env.save_new_round(t)
+    step_interval_counter = 0
 
     """ load the models of the agents from previous experiments """
     load_agent(tom, jerry, roadrunner, coyote, outdir_loadable=outdir_loadable)
@@ -246,10 +246,29 @@ if __name__ == '__main__':
                 time_step = time_stamp_current - time_stamp_start
                 print("mission time up: %i seconds" % time_step)
 
-                """ calculate the next steps for the agents """
+                """ calculate the next steps for the agents and 
+                train the team-mate with the same pictures 
+                every three steps: >1
+                every second step: >0
+                every step: ==0
+                never: == -200 beliebige Zahl, die < 0 ist, da der step_interval_counter hochzählt.
+                """
+
+                if step_interval_counter == 0:
+                    action_train = tom.act_and_train(obs3, r3)
                 action1 = tom.act_and_train(obs1, r1)
+
+                if step_interval_counter == 0:
+                    action_train = jerry.act_and_train(obs4, r4)
                 action2 = jerry.act_and_train(obs2, r2)
+
+                if step_interval_counter == 0:
+                    action_train = roadrunner.act_and_train(obs1, r1)
                 action3 = roadrunner.act_and_train(obs3, r3)
+
+                if step_interval_counter == 0:
+                    action_train = coyote.act_and_train(obs2, r2)
+                    step_interval_counter = 0
                 action4 = coyote.act_and_train(obs4, r4)
 
                 """ check if agents would run into each other when they do the calculated step """
@@ -262,11 +281,11 @@ if __name__ == '__main__':
                 t_tom = t_jerry = t_roadrunner = t_coyote = 0
                 while not env.command_executed_tom:
                     world_state1 = env.agent_host1.peekWorldState()
-
                     """ checks, if world_state is read correctly, if not, trys again"""
                     while world_state1.number_of_observations_since_last_state == 0:
                         world_state1 = env.agent_host1.peekWorldState()
                         print(".")
+
                         time.sleep(0.01)
                     env.x1_prev, y1, env.z1_prev = env.get_position_in_arena(world_state1, time_step, 1)
                     obs1, r1, done1, info1 = env.step_generating(action1, 1)
@@ -356,23 +375,10 @@ if __name__ == '__main__':
                     hook(env, roadrunner, t)
                     hook(env, coyote, t)
 
-                """ check, if any agent looks down or up and correct it"""
-                """looks_straight = False
-                print("Check, if the agents are focused or looking around:")
-                while not looks_straight:
-                    ls1 = env.check_if_agent_looks_straight(1)
-                    ls2 = env.check_if_agent_looks_straight(2)
-                    ls3 = env.check_if_agent_looks_straight(3)
-                    ls4 = env.check_if_agent_looks_straight(4)
-
-                    if ls1 == False or ls2 == False or ls3 == False or ls4 == False:
-                        looks_straight = False
-                    else:
-                        looks_straight = True
-                        print("Everyone is focused.")"""
-
                 """ check, if an agent captured the flag """
-                env.check_inventory(time_step, t, experiment_ID)
+                env.check_inventory(time_step, t, experiment_ID, overall_reward_agent_Tom,
+                                    overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                    overall_reward_agent_coyote, time_stamp_start)
 
                 print("--------------------------------------------------------------------")
 
@@ -393,7 +399,8 @@ if __name__ == '__main__':
                                                           env.overall_reward_agent_coyote,
                                                           time_step, obs1, r1, obs2, r2, obs3,
                                                           r3, obs4, r4, outdir, outdir_loadable, t,
-                                                          tom, jerry, roadrunner, coyote, experiment_ID)
+                                                          tom, jerry, roadrunner, coyote, experiment_ID,
+                                                          time_stamp_start)
 
                     """ load the models of the agents from the previous episode to evolve the agents """
                     load_agent(tom, jerry, roadrunner, coyote, outdir_loadable=outdir_loadable)
@@ -404,7 +411,7 @@ if __name__ == '__main__':
                     """ let the Malmo Mod recover """
                     time.sleep(2)
 
-                if t == 1001:
+                if t == 101:
                     print("Mission-Set finished. Congratulations! Check results and parameters. Start over.")
                     break
 
@@ -414,6 +421,5 @@ if __name__ == '__main__':
             save_agent(jerry, t, outdir, outdir_loadable, logger, suffix='exception_agent_jerry')
             save_agent(roadrunner, t, outdir, outdir_loadable, logger, suffix='exception_agent_roadrunner')
             save_agent(coyote, t, outdir, outdir_loadable, logger, suffix='exception_agent_coyote')
-
 
             raise

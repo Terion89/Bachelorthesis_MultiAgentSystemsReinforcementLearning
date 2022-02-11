@@ -43,16 +43,12 @@ available functions:
     clip_action_filter(a)
     dqn_q_values_and_neuronal_net(args, action_space, obs_size, obs_space)
     step_generating(action, agent_num)
-    reset_world(experiment_ID, time_stamp_start, t)
+    reset_world(t, overall_reward_agent_Tom,
+                    overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                    overall_reward_agent_coyote, time_stamp_start, experiment_ID)
     do_action(actions, agent_num)
     get_video_frame(world_state, agent_num)
     get_observation(world_state)
-    save_new_round(t)
-    append_save_file_with_flag(time_step, name)
-    append_save_file_with_agents_fail(text)
-    append_save_file_with_finish(time_step, name)
-    save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
-        overall_reward_agent_coyote,time_step)
     get_cell_agents()
     get_current_cell_agents()
     get_world_state_observations(world_state)
@@ -69,7 +65,7 @@ available functions:
     sending_mission_quit_commands(overall_reward_agent_Tom, overall_reward_agent_Jerry,
     overall_reward_agent_roadrunner, overall_reward_agent_coyote, time_step, obs1, r1, obs2, r2, obs3, r3, 
         obs4, r4, outdir, t, tom, jerry, roadrunner, coyote, experiment_ID)
-    save_data()
+    save_data(t)
     save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
         overall_reward_agent_Jerry, overall_reward_agent_roadrunner, overall_reward_agent_coyote)
 """
@@ -393,7 +389,7 @@ class ThesisEnvExperiment(gym.Env):
             """ loop to minimize errors if there is a broken world_state"""
             while world_state1 == 0:
                 world_state1 = self.agent_host1.peekWorldState()
-
+                print("worldstate: ", world_state1)
             while world_state1.number_of_observations_since_last_state == 0:
                 world_state1 = self.agent_host1.peekWorldState()
                 time.sleep(0.1)
@@ -626,7 +622,9 @@ class ThesisEnvExperiment(gym.Env):
         print("random number: ", random_number)
         return random_number
 
-    def reset_world(self, experiment_ID, time_stamp_start, t):
+    def reset_world(self, t, overall_reward_agent_Tom,
+                    overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                    overall_reward_agent_coyote, time_stamp_start, experiment_ID):
         """
         reset the arena and start the missions per agent
         The sleep-timer of 10sec is required, because the client needs far too much time to set up the mission
@@ -731,7 +729,9 @@ class ThesisEnvExperiment(gym.Env):
                 t, obs1, obs2, r1, r2, obs3, obs4, r3, r4, self.done_team01, \
                 self.done_team02, self.overall_reward_agent_Jerry, self.overall_reward_agent_Tom, \
                 self.overall_reward_agent_roadrunner, self.overall_reward_agent_coyote = \
-                    self.quit_after_crash(t, experiment_ID)
+                    self.quit_after_crash(t, time_step, overall_reward_agent_Tom,
+                                          overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                          overall_reward_agent_coyote, time_stamp_start, experiment_ID)
                 break
 
             for error in world_state1.errors and world_state2.errors and world_state3.errors and world_state4.errors:
@@ -856,57 +856,6 @@ class ThesisEnvExperiment(gym.Env):
         else:
             return None
 
-    def save_new_round(self, t):
-        """
-        saves the round number in results.txt
-        """
-        datei = open(self.dirname + "/" + 'results.txt', 'a')
-        datei.write("\n-------------- ROUND %i --------------\n" % t)
-        time_start = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
-        datei.write("starts at: %s" % time_start)
-        datei.close()
-
-    def append_save_file_with_flag(self, time_step, name):
-        """
-        saves the flagholder in results.txt
-        """
-        datei = open(self.dirname + "/" + 'results.txt', 'a')
-        datei.write("%s captured the flag after %i seconds.\n" % (name, time_step))
-        datei.close()
-
-    def append_save_file_with_agents_fail(self, text):
-        """
-        saves the explicit agent-failes in results.txt
-        """
-        datei = open(self.dirname + "/" + 'results.txt', 'a')
-        datei.write(text + "\n")
-        datei.close()
-
-    def append_save_file_with_finish(self, time_step, name):
-        """
-        saves the winner in results.txt
-        """
-        datei = open(self.dirname + "/" + 'results.txt', 'a')
-        datei.write("%s won the game after %i seconds.\n" % (name, time_step))
-        datei.close()
-
-    def save_results(self, overall_reward_agent_Tom, overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
-                     overall_reward_agent_coyote, time_step):
-        """
-        saves the results in results.txt
-        """
-        datei = open(self.dirname + "/" + 'results.txt', 'a')
-        if self.too_close_counter == 1:
-            datei.write("The agents were 1 time very close to each other.\n")
-
-        else:
-            datei.write("The agents were %i times very close to each other.\n" % self.too_close_counter)
-
-        datei.write("Reward Tom: %i, Reward Jerry: %i , Reward Roadrunner: %i, Reward Coyote: %i , Time: %f \n\n" % (
-            overall_reward_agent_Tom, overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
-            overall_reward_agent_coyote, time_step))
-        datei.close()
-
     def get_cell_agents(self):
         """
         gets the cell coordinates for the agents to compare with
@@ -1003,14 +952,11 @@ class ThesisEnvExperiment(gym.Env):
                             self.fetched_cell_coyote == self.cell_now_coyote:
                         print("The agents stood more than 110 seconds in one place.")
                         # self.time_step_agents_ran_into_each_other = int(time_step)
-                        self.append_save_file_with_agents_fail("The agents stood more than 110 seconds in one place.")
                         # self.mission_end = True
 
                 return x, y, z
             else:
                 if t == 10:
-                    self.append_save_file_with_agents_fail(
-                        "The 10th attempt failed - the agents got stuck in one place.")
                     self.time_step_agents_ran_into_each_other = int(time_step)
                     self.mission_end = True
                     return x, y, z
@@ -1019,7 +965,6 @@ class ThesisEnvExperiment(gym.Env):
                     t += 1
                     world_state = self.get_safe_worldstate(agent_num)
                     print("Agents are stuck - Attempt: ", t)
-                    self.append_save_file_with_agents_fail("The agents are stuck - Attempt: " + t)
 
     def movenorth1_function(self, x, z):
         """ calculates the new x and z values after the agent moved one step north """
@@ -1224,10 +1169,13 @@ class ThesisEnvExperiment(gym.Env):
                 print("Tom's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
                     x1_current, z1_current, self.x1_exp, self.z1_exp))
                 if int(x1_current) == 2 and int(z1_current) == 10 or int(x1_current) == 2 and int(z1_current) == 9 or \
-                    int(x1_current) == 1 and int(z1_current) == 8 or int(x1_current) == 0 and int(z1_current) == 8 or \
-                    int(x1_current) == 8 and int(z1_current) == 1 or int(x1_current) == 8 and int(z1_current) == 0 or \
-                    int(x1_current) == 10 and int(z1_current) == 2 or int(x1_current) == 9 and int(z1_current) == 2 or \
-                    int(self.x1_exp) == int(x1_current) and int(self.z1_exp) == int(z1_current):
+                        int(x1_current) == 1 and int(z1_current) == 8 or int(x1_current) == 0 and int(
+                    z1_current) == 8 or \
+                        int(x1_current) == 8 and int(z1_current) == 1 or int(x1_current) == 8 and int(
+                    z1_current) == 0 or \
+                        int(x1_current) == 10 and int(z1_current) == 2 or int(x1_current) == 9 and int(
+                    z1_current) == 2 or \
+                        int(self.x1_exp) == int(x1_current) and int(self.z1_exp) == int(z1_current):
 
                     print("Tom executed sucessfully.")
                     return True
@@ -1251,10 +1199,13 @@ class ThesisEnvExperiment(gym.Env):
                 print("Jerry's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
                     x2_current, z2_current, self.x2_exp, self.z2_exp))
                 if int(x2_current) == 2 and int(z2_current) == 10 or int(x2_current) == 2 and int(z2_current) == 9 or \
-                    int(x2_current) == 1 and int(z2_current) == 8 or int(x2_current) == 0 and int(z2_current) == 8 or \
-                    int(x2_current) == 8 and int(z2_current) == 1 or int(x2_current) == 8 and int(z2_current) == 0 or \
-                    int(x2_current) == 10 and int(z2_current) == 2 or int(x2_current) == 9 and int(z2_current) == 2 or \
-                    int(self.x2_exp) == int(x2_current) and int(self.z2_exp) == int(z2_current):
+                        int(x2_current) == 1 and int(z2_current) == 8 or int(x2_current) == 0 and int(
+                    z2_current) == 8 or \
+                        int(x2_current) == 8 and int(z2_current) == 1 or int(x2_current) == 8 and int(
+                    z2_current) == 0 or \
+                        int(x2_current) == 10 and int(z2_current) == 2 or int(x2_current) == 9 and int(
+                    z2_current) == 2 or \
+                        int(self.x2_exp) == int(x2_current) and int(self.z2_exp) == int(z2_current):
                     print("Jerry executed sucessfully.")
                     return True
                 else:
@@ -1277,10 +1228,13 @@ class ThesisEnvExperiment(gym.Env):
                 print("Roadrunner's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
                     x3_current, z3_current, self.x3_exp, self.z3_exp))
                 if int(x3_current) == 2 and int(z3_current) == 10 or int(x3_current) == 2 and int(z3_current) == 9 or \
-                    int(x3_current) == 1 and int(z3_current) == 8 or int(x3_current) == 0 and int(z3_current) == 8 or \
-                    int(x3_current) == 8 and int(z3_current) == 1 or int(x3_current) == 8 and int(z3_current) == 0 or \
-                    int(x3_current) == 10 and int(z3_current) == 2 or int(x3_current) == 9 and int(z3_current) == 2 or \
-                    int(self.x3_exp) == int(x3_current) and int(self.z3_exp) == int(z3_current):
+                        int(x3_current) == 1 and int(z3_current) == 8 or int(x3_current) == 0 and int(
+                    z3_current) == 8 or \
+                        int(x3_current) == 8 and int(z3_current) == 1 or int(x3_current) == 8 and int(
+                    z3_current) == 0 or \
+                        int(x3_current) == 10 and int(z3_current) == 2 or int(x3_current) == 9 and int(
+                    z3_current) == 2 or \
+                        int(self.x3_exp) == int(x3_current) and int(self.z3_exp) == int(z3_current):
                     print("Roadrunner executed sucessfully.")
                     return True
                 else:
@@ -1303,10 +1257,13 @@ class ThesisEnvExperiment(gym.Env):
                 print("Coyote's current (x,z): (%i, %i) | expected (x,z): (%i, %i) " % (
                     x4_current, z4_current, self.x4_exp, self.z4_exp))
                 if int(x4_current) == 2 and int(z4_current) == 10 or int(x4_current) == 2 and int(z4_current) == 9 or \
-                    int(x4_current) == 1 and int(z4_current) == 8 or int(x4_current) == 0 and int(z4_current) == 8 or \
-                    int(x4_current) == 8 and int(z4_current) == 1 or int(x4_current) == 8 and int(z4_current) == 0 or \
-                    int(x4_current) == 10 and int(z4_current) == 2 or int(x4_current) == 9 and int(z4_current) == 2 or \
-                    int(self.x4_exp) == int(x4_current) and int(self.z4_exp) == int(z4_current):
+                        int(x4_current) == 1 and int(z4_current) == 8 or int(x4_current) == 0 and int(
+                    z4_current) == 8 or \
+                        int(x4_current) == 8 and int(z4_current) == 1 or int(x4_current) == 8 and int(
+                    z4_current) == 0 or \
+                        int(x4_current) == 10 and int(z4_current) == 2 or int(x4_current) == 9 and int(
+                    z4_current) == 2 or \
+                        int(self.x4_exp) == int(x4_current) and int(self.z4_exp) == int(z4_current):
                     print("Coyote executed sucessfully.")
                     return True
                 else:
@@ -1542,7 +1499,6 @@ class ThesisEnvExperiment(gym.Env):
         look down, place flag, look up again and jump on flag
         """
         agent_host.sendCommand('chat I won the game!')
-        self.append_save_file_with_finish(time_step, name)
         self.time_step_tom_won = time_step
         self.winner_agent = name
 
@@ -1555,7 +1511,9 @@ class ThesisEnvExperiment(gym.Env):
         agent_host.sendCommand('jumpmove 1')
         time.sleep(1)
 
-    def check_inventory(self, time_step, t, experiment_ID):
+    def check_inventory(self, time_step, t, experiment_ID, overall_reward_agent_Tom,
+                                                  overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                                  overall_reward_agent_coyote, time_stamp_start):
         """
         checks, if the agent got the flag in his inventory
         """
@@ -1629,7 +1587,9 @@ class ThesisEnvExperiment(gym.Env):
                         breaker += 1
                         time.sleep(0.5)
                         if breaker == 120:
-                            self.quit_after_crash(t, experiment_ID)
+                            self.quit_after_crash(t, time_step, overall_reward_agent_Tom,
+                                                  overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                                  overall_reward_agent_coyote, time_stamp_start, experiment_ID)
 
                     self.agent_host1.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.1)
@@ -1659,7 +1619,9 @@ class ThesisEnvExperiment(gym.Env):
                         breaker += 1
                         time.sleep(0.5)
                         if breaker == 120:
-                            self.quit_after_crash(t, experiment_ID)
+                            self.quit_after_crash(t, time_step, overall_reward_agent_Tom,
+                                                  overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                                  overall_reward_agent_coyote, time_stamp_start, experiment_ID)
 
                     self.agent_host3.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.3)
@@ -1667,7 +1629,6 @@ class ThesisEnvExperiment(gym.Env):
                 if inventory_string_tom.find('log') != -1:
                     self.flag_captured_tom = True
                     self.time_step_tom_captured_the_flag = time_step
-                    self.append_save_file_with_flag(time_step, "Tom")
                     print(
                         "----------------------------------------------------------------Tom captured the flag after %i seconds!" % (
                             time_step))
@@ -1675,7 +1636,6 @@ class ThesisEnvExperiment(gym.Env):
                 if inventory_string_roadrunner.find('log') != -1:
                     self.flag_captured_roadrunner = True
                     self.time_step_roadrunner_captured_the_flag = time_step
-                    self.append_save_file_with_flag(time_step, "Roadrunner")
                     print(
                         "----------------------------------------------------------------Roadrunner captured the flag after %i seconds!" % (
                             time_step))
@@ -1725,7 +1685,9 @@ class ThesisEnvExperiment(gym.Env):
                         breaker += 1
                         time.sleep(0.5)
                         if breaker == 120:
-                            self.quit_after_crash(t, experiment_ID)
+                            self.quit_after_crash(t, time_step, overall_reward_agent_Tom,
+                                                  overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                                  overall_reward_agent_coyote, time_stamp_start, experiment_ID)
 
                     self.agent_host2.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.3)
@@ -1755,7 +1717,9 @@ class ThesisEnvExperiment(gym.Env):
                         breaker += 1
                         time.sleep(0.1)
                         if breaker == 120:
-                            self.quit_after_crash(t, experiment_ID)
+                            self.quit_after_crash(t, time_step, overall_reward_agent_Tom,
+                                                  overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                                  overall_reward_agent_coyote, time_stamp_start, experiment_ID)
 
                     self.agent_host4.sendCommand('swapInventoryItems 0 1')
                     time.sleep(0.3)
@@ -1763,19 +1727,19 @@ class ThesisEnvExperiment(gym.Env):
                 if inventory_string_jerry.find('quartz') != -1:
                     self.flag_captured_jerry = True
                     self.time_step_jerry_captured_the_flag = time_step
-                    self.append_save_file_with_flag(time_step, "Jerry")
                     print(
                         "----------------------------------------------------------------Jerry captured the flag after %i seconds!" % (
                             time_step))
                 if inventory_string_coyote.find('quartz') != -1:
                     self.flag_captured_coyote = True
                     self.time_step_coyote_captured_the_flag = time_step
-                    self.append_save_file_with_flag(time_step, "Coyote")
                     print(
                         "----------------------------------------------------------------Coyote captured the flag after %i seconds!" % (
                             time_step))
 
-    def quit_after_crash(self, t, experiment_ID):
+    def quit_after_crash(self, t, time_step, overall_reward_agent_Tom,
+                         overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                         overall_reward_agent_coyote, time_stamp_start, experiment_ID):
 
         """ send the MissionQuit Command to tell the Mod we finished """
         self.agent_host0.sendCommand('quit')
@@ -1790,6 +1754,9 @@ class ThesisEnvExperiment(gym.Env):
         """ Reset clients after crash """
         print("quit after crash: reset Clients")
 
+        self.save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
+                                            overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                                            overall_reward_agent_coyote, time_stamp_start)
         """ initialisation for the next episode, reset parameters, build new world """
 
         t += 1
@@ -1799,12 +1766,13 @@ class ThesisEnvExperiment(gym.Env):
         self.done_team01 = self.done_team02 = self.mission_end = False
         self.overall_reward_agent_Jerry = self.overall_reward_agent_Tom = 0
         self.overall_reward_agent_roadrunner = self.overall_reward_agent_coyote = 0
-        self.save_new_round(t)
 
         time.sleep(20)
 
         time_stamp_start = time.time()
-        self.obs1, self.obs2, self.obs3, self.obs4 = self.reset_world(experiment_ID, time_stamp_start, t)
+        self.obs1, self.obs2, self.obs3, self.obs4 = self.reset_world(t, overall_reward_agent_Tom,
+                    overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                    overall_reward_agent_coyote, time_stamp_start, experiment_ID)
 
         self.too_close_counter = 0
         self.winner_agent = "-"
@@ -1844,7 +1812,7 @@ class ThesisEnvExperiment(gym.Env):
     def sending_mission_quit_commands(self, overall_reward_agent_Tom, overall_reward_agent_Jerry,
                                       overall_reward_agent_roadrunner, overall_reward_agent_coyote,
                                       time_step, obs1, r1, obs2, r2, obs3, r3, obs4, r4, outdir, outdir_loadable, t,
-                                      tom, jerry, roadrunner, coyote, experiment_ID):
+                                      tom, jerry, roadrunner, coyote, experiment_ID, time_stamp_start):
 
         """ send the MissionQuit Command to tell the Mod we finished """
         self.quit()
@@ -1856,8 +1824,7 @@ class ThesisEnvExperiment(gym.Env):
         print("regular quit: reset Clients")
 
         """ save and show results of reward calculations """
-        self.save_results(overall_reward_agent_Tom, overall_reward_agent_Jerry, overall_reward_agent_roadrunner, \
-                          overall_reward_agent_coyote, time_step)
+
         print("Final Reward Tom:   ", overall_reward_agent_Tom)
         print("Final Reward Jerry: ", overall_reward_agent_Jerry)
         print("Final Reward Roadrunner:   ", overall_reward_agent_roadrunner)
@@ -1884,20 +1851,18 @@ class ThesisEnvExperiment(gym.Env):
         """ save all the collected data for evaluation graphs """
         self.save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
                                             overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
-                                            overall_reward_agent_coyote)
+                                            overall_reward_agent_coyote, time_stamp_start)
         """ recover """
         time.sleep(2)
 
         """ initialisation for the next episode, reset parameters, build new world """
         print("initiate new episode")
-        t += 1
         self.episode_counter += 1
         self.r1 = self.r2 = self.r3 = self.r4 = 0
         self.done1 = self.done2 = self.done3 = self.done4 = False
         self.done_team01 = self.done_team02 = self.mission_end = False
         self.overall_reward_agent_Jerry = self.overall_reward_agent_Tom = 0
         self.overall_reward_agent_roadrunner = self.overall_reward_agent_coyote = 0
-        self.save_new_round(t)
 
         time_stamp_start = time.time()
         print("new start time: ", time_stamp_start)
@@ -1913,8 +1878,10 @@ class ThesisEnvExperiment(gym.Env):
         self.steps_jerry = 0
         self.steps_roadrunner = 0
         self.steps_coyote = 0
-
-        self.obs1, self.obs2, self.obs3, self.obs4 = self.reset_world(experiment_ID, time_stamp_start, t)
+        t += 1  # increase the episode counter
+        self.obs1, self.obs2, self.obs3, self.obs4 = self.reset_world(t, overall_reward_agent_Tom,
+                    overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                    overall_reward_agent_coyote, time_stamp_start, experiment_ID)
 
         """ recover """
         time.sleep(2)
@@ -1932,14 +1899,21 @@ class ThesisEnvExperiment(gym.Env):
                self.overall_reward_agent_Tom, self.overall_reward_agent_roadrunner, \
                self.overall_reward_agent_coyote
 
-    def save_data(self):
+    def save_data(self, t, time_stamp_start):
         """
         save data to check if the plotted graph is correct
         just for user's information
         not for validation
         """
+
+        time_stamp_end = time.time()
+        time_start_readable = time.ctime(time_stamp_start)
+        time_end_readable = time.ctime(time_stamp_end)
+
         datei = open(self.dirname + "/" + 'saved_data.txt', 'a')
         datei.write("\n\n#############################################################################################")
+        datei.write("\nRound Nr. %i" % t)
+        datei.write("\nstart_time: %s" % time_start_readable)
         datei.write("\nepisode_counter: %s" % self.evaluation_episode_counter)
         datei.write("\nepisode_time: %s" % self.evaluation_episode_time)
         datei.write("\ntoo_close_counter: %s" % self.evaluation_too_close_counter)
@@ -1957,11 +1931,12 @@ class ThesisEnvExperiment(gym.Env):
         datei.write("\nsteps_jerry: %s" % self.evaluation_steps_jerry)
         datei.write("\nsteps_roadrunner: %s" % self.evaluation_steps_roadrunner)
         datei.write("\nsteps_coyote: %s" % self.evaluation_steps_coyote)
+        datei.write("\nend_time: %s" % time_end_readable)
         datei.close()
 
     def save_data_for_evaluation_plots(self, t, time_step, overall_reward_agent_Tom,
                                        overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
-                                       overall_reward_agent_coyote):
+                                       overall_reward_agent_coyote, time_stamp_start):
         """
         t: number of episode
         time_step: duration of the episode
@@ -2011,7 +1986,7 @@ class ThesisEnvExperiment(gym.Env):
 
             print("save data")
             """ save above values to check the correctness of the graph, just for information """
-            self.save_data()
+            self.save_data(t, time_stamp_start)
 
             """ evaluate and print the plots """
             print("evaluate and plot")

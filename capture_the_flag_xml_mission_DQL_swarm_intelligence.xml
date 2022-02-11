@@ -4,7 +4,8 @@
     <Summary>Testarena: Capture the flag </Summary>
   </About>
   <ModSettings>
-      <!--<MsPerTick>10</MsPerTick>-->
+      <MsPerTick>25</MsPerTick>
+      <PrioritiseOffscreenRendering>true</PrioritiseOffscreenRendering>
   </ModSettings>
   <ServerSection>
     <ServerInitialConditions>

@@ -153,6 +153,11 @@ class DQN(agent.AttributeSavingMixin, agent.BatchAgent):
         self.model = q_function
         self.q_function = q_function  # For backward compatibility
 
+        print("q-function: ", q_function)
+        print("optimizer: ", optimizer)
+        print("replay buffer: ", replay_buffer)
+        print("gamma: ", gamma)
+        print("explorer: ", explorer)
 
         if gpu is not None and gpu >= 0:
             cuda.get_device_from_id(gpu).use()

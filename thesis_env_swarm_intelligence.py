@@ -389,7 +389,7 @@ class ThesisEnvExperiment(gym.Env):
             """ loop to minimize errors if there is a broken world_state"""
             while world_state1 == 0:
                 world_state1 = self.agent_host1.peekWorldState()
-                print("worldstate: ", world_state1)
+                #print("worldstate: ", world_state1)
             while world_state1.number_of_observations_since_last_state == 0:
                 world_state1 = self.agent_host1.peekWorldState()
                 time.sleep(0.1)

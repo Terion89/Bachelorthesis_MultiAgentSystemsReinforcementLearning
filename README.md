@@ -1,4 +1,4 @@
-# Schwarmintelligenz in Multi-Agenten-Systemen mit Reinforcement Learning in Minecraft
+# Schwarmintelligenz basierend auf Reinforcement Learning am Beispiel des  Malmo Frameworks
 
 relevant data
 

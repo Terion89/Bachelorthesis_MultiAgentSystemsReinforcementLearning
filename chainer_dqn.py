@@ -158,6 +158,7 @@ class DQN(agent.AttributeSavingMixin, agent.BatchAgent):
         print("replay buffer: ", replay_buffer)
         print("gamma: ", gamma)
         print("explorer: ", explorer)
+        print("model: ", self.model)
 
         if gpu is not None and gpu >= 0:
             cuda.get_device_from_id(gpu).use()

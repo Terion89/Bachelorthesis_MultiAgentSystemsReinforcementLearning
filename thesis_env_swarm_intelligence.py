@@ -326,7 +326,7 @@ class ThesisEnvExperiment(gym.Env):
 
     def dqn_q_values_and_neuronal_net(self, args, action_space, obs_size, obs_space):
         """
-        WIP! dqn net
+        dqn net
         """
 
         if isinstance(action_space, spaces.Box):

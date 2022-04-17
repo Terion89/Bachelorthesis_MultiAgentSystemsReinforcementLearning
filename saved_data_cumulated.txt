@@ -1,3 +1,6 @@
+Observations:
+{'inventory': [{'type': 'diamond_pickaxe', 'index': 3, 'quantity': 1, 'inventory': 'inventory'}], 'inventoriesAvailable': [{'name': 'inventory', 'size': 41}], 'currentItemIndex': 0, 'cell': '(7,2)', 'DistanceTravelled': 1400, 'TimeAlive': 1689, 'MobsKilled': 0, 'PlayersKilled': 0, 'DamageTaken': 0, 'DamageDealt': 0, 'Life': 20.0, 'Score': 0, 'Food': 20, 'XP': 0, 'IsAlive': True, 'Air': 300, 'Name': 'Tom', 'XPos': 6.5, 'YPos': 4.0, 'ZPos': 1.5, 'Pitch': 0.0, 'Yaw': 270.0, 'WorldTime': 100, 'TotalTime': 1771, 'LineOfSight': {'hitType': 'block', 'x': 9.0, 'y': 5.620000004768372, 'z': 1.5, 'type': 'quartz_block', 'prop_variant': 'default', 'inRange': True, 'distance': 2.5}}
+
 #####################################################################################################
 #####################################################################################################
 

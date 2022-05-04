@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 """
-Bachelor Thesis: Multiagent Systems and Reinforcement Learning in Minecraft
+Bachelor Thesis: Schwarmintelligenz basierend auf Reinforcement Learning am Beispiel des malmo-Frameworks
 Author: Alexandra Petric
 Matr.Nr.: 1361271
 
@@ -42,10 +42,12 @@ available functions:
     load_mission_xml(mission_xml)
     clip_action_filter(a)
     dqn_q_values_and_neuronal_net(args, action_space, obs_size, obs_space)
+    get_safe_worldstate(agent_num)
     step_generating(action, agent_num)
+    random_timer()
     reset_world(t, overall_reward_agent_Tom,
                     overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
-                    overall_reward_agent_coyote, time_stamp_start, experiment_ID)
+                    overall_reward_agent_coyote, time_stamp_start, experiment_ID)      
     do_action(actions, agent_num)
     get_video_frame(world_state, agent_num)
     get_observation(world_state)
@@ -60,8 +62,15 @@ available functions:
     get_new_position(action, x, z)
     approve_distance(tom, jerry, roadrunner, coyote, obs1, obs2, obs3, obs4, r1, r2, r3, r4,
         action1, action2, action3, action4, time_step)
+    check_if_command_was_executed(agent_num, time_step)
+    check_if_agent_looks_straight(agent_num)
+    check_if_something_blocks_the_way(agent_num)
     winner_behaviour(agent_host, time_step, name)
     check_inventory(time_step)
+    quit_after_crash(t, time_step, overall_reward_agent_Tom,
+                         overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                         overall_reward_agent_coyote, time_stamp_start, experiment_ID)
+    quit()
     sending_mission_quit_commands(overall_reward_agent_Tom, overall_reward_agent_Jerry,
     overall_reward_agent_roadrunner, overall_reward_agent_coyote, time_step, obs1, r1, obs2, r2, obs3, r3, 
         obs4, r4, outdir, t, tom, jerry, roadrunner, coyote, experiment_ID)
@@ -176,7 +185,7 @@ class ThesisEnvExperiment(gym.Env):
              gameMode=None, forceWorldReset=None):
 
         """ initialize the environment with the standard parameters """
-
+        print("mission initialisation")
         self.max_retries = max_retries
         self.retry_sleep = retry_sleep
         self.step_sleep = step_sleep
@@ -283,7 +292,7 @@ class ThesisEnvExperiment(gym.Env):
                             "movewest", "jump", "attack"
         discrete_actions:   wanted actions
         """
-
+        print("creating action space")
         discrete_actions = []
         discrete_actions.append("movenorth 1")
         discrete_actions.append("movesouth 1")
@@ -310,6 +319,7 @@ class ThesisEnvExperiment(gym.Env):
         """
         load XML mission from folder
         """
+        print("load mission from folder")
         logger.info("Loading mission from " + mission_file)
         mission_xml = open(mission_file, 'r').read()
         self.load_mission_xml(mission_xml)
@@ -318,6 +328,7 @@ class ThesisEnvExperiment(gym.Env):
         """
         load mission file into game
         """
+        print("load mission into game")
         self.mission_spec = MalmoPython.MissionSpec(mission_xml, True)
         logger.info("Loaded mission: " + self.mission_spec.getSummary())
 
@@ -326,7 +337,7 @@ class ThesisEnvExperiment(gym.Env):
 
     def dqn_q_values_and_neuronal_net(self, args, action_space, obs_size, obs_space):
         """
-        dqn net
+        define the values for the neuronal net
         """
 
         if isinstance(action_space, spaces.Box):
@@ -345,12 +356,13 @@ class ThesisEnvExperiment(gym.Env):
             # discrete movement
             n_actions = action_space.n
             print("n_actions: ", n_actions)
+            # model function
             q_func = q_functions.FCStateQFunctionWithDiscreteAction(
                 obs_size, n_actions,
                 n_hidden_channels=args.n_hidden_channels,
                 n_hidden_layers=args.n_hidden_layers)
             print("q_func ", q_func)
-            # Use epsilon-greedy for exploration
+            # epsilon greedy
             explorer = explorers.LinearDecayEpsilonGreedy(
                 args.start_epsilon, args.end_epsilon, args.final_exploration_steps,
                 action_space.sample)
@@ -358,7 +370,6 @@ class ThesisEnvExperiment(gym.Env):
 
         if args.noisy_net_sigma is not None:
             links.to_factorized_noisy(q_func, sigma_scale=args.noisy_net_sigma)
-            # Turn off explorer
             explorer = explorers.Greedy()
             # print("obs_space.low : ", obs_space.shape)
             chainerrl.misc.draw_computational_graph(
@@ -383,7 +394,11 @@ class ThesisEnvExperiment(gym.Env):
         return q_func, opt, rbuf, explorer
 
     def get_safe_worldstate(self, agent_num):
-
+        """
+        reads the current worldstate in a safe way, so that it is correct
+        PARAMETER: agent_num
+        RETURN: worldstate
+        """
         if agent_num == 1:
             world_state1 = 0
             """ loop to minimize errors if there is a broken world_state"""
@@ -627,7 +642,7 @@ class ThesisEnvExperiment(gym.Env):
                     overall_reward_agent_coyote, time_stamp_start, experiment_ID):
         """
         reset the arena and start the missions per agent
-        The sleep-timer of 10sec is required, because the client needs far too much time to set up the mission
+        The sleep-timer of 10sec is required, because the client needs far more time to set up the mission
         for the first time.
         All following missions start faster (sometimes).
         PARAMETERS: experiment_ID
@@ -915,9 +930,9 @@ class ThesisEnvExperiment(gym.Env):
 
     def get_position_in_arena(self, world_state, time_step, agent_num):
         """
-        get (x,y,z) Positioncoordinates of agent
+        get (x,y,z) position coordinates of agent
         fetch the cell coordinates every 30 seconds
-        check with current coordinates -> if they are the same more than 28 seconds, it is nearly safe, that the agents
+        check with current coordinates -> if they are the same more than 110 seconds, it is nearly safe, that the agents
         crashed into each other -> declare mission as failed and end it
         PARAMETERS: world_state, time_step, agent_num
         RETURN: x,y,z
@@ -1019,7 +1034,11 @@ class ThesisEnvExperiment(gym.Env):
             return x_ziel, z_ziel
 
     def get_new_position(self, action, x, z):
-        """ calculates the new position of the agent """
+        """
+        calculates the new position of the agent after a step
+        PARAMETERS: action, x, z
+        RETURN: x, z, block_yaw
+        """
 
         action_name = ""
 
@@ -1049,7 +1068,7 @@ class ThesisEnvExperiment(gym.Env):
     def approve_distance(self, tom, jerry, roadrunner, coyote, obs1, obs2, obs3, obs4, r1, r2, r3, r4,
                          action1, action2, action3, action4, time_step, t, experiment_ID):
         """
-        check if agents are too close to eachother
+        check if agents are too close to each other
         if so, the next actions are calculated new
         PARAMETERS: tom, jerry, roadrunner, coyote, obs1, obs2, obs3, obs4, r1, r2, r3, r4,
                          action1, action2, action3, action4, time_step, t, experiment_ID
@@ -1101,7 +1120,7 @@ class ThesisEnvExperiment(gym.Env):
             second block: checks for old positions, 
                 because the steps are not perfectly synchronous
             """
-            # WIP !!!
+
             # time.sleep(0.5)
             if (int(self.x1_exp) == int(self.x2_exp) and int(self.z1_exp) == int(self.z2_exp)) or \
                     (int(self.x1_exp) == int(self.x3_exp) and int(self.z1_exp) == int(self.z3_exp)) or \
@@ -1351,12 +1370,14 @@ class ThesisEnvExperiment(gym.Env):
         return looks_straight
 
     def check_if_something_blocks_the_way(self, agent_num):
-        """ turns the agent so that he looks toward a possible limiting block
+        """
+        turns the agent so that he looks toward a possible limiting block
         if there really is a block, approve, that the expected position is the current one,
         because he can not move through the block
         gets world_state at normal sight // and at looking at his feet,
-        // because a one-block-high-maze or the empty baseblocks could be there"""
-        # WIP!!!
+        // because a one-block-high-maze or the empty baseblocks could be there
+        """
+
         block_yaw = 1
         right_direction = False
 
@@ -1516,6 +1537,9 @@ class ThesisEnvExperiment(gym.Env):
                                                   overall_reward_agent_coyote, time_stamp_start):
         """
         checks, if the agent got the flag in his inventory
+        PARAMETERS: time_step, t, experiment_ID, overall_reward_agent_Tom,
+                    overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
+                    overall_reward_agent_coyote, time_stamp_start
         """
         world_state1 = self.get_safe_worldstate(1)
         world_state2 = self.get_safe_worldstate(2)
@@ -1757,8 +1781,8 @@ class ThesisEnvExperiment(gym.Env):
         self.save_data_for_evaluation_plots(t, time_step, overall_reward_agent_Tom,
                                             overall_reward_agent_Jerry, overall_reward_agent_roadrunner,
                                             overall_reward_agent_coyote, time_stamp_start)
-        """ initialisation for the next episode, reset parameters, build new world """
 
+        """ initialisation for the next episode, reset parameters, build new world """
         t += 1
         self.episode_counter += 1
         self.r1 = self.r2 = self.r3 = self.r4 = 0
@@ -1903,7 +1927,7 @@ class ThesisEnvExperiment(gym.Env):
         """
         save data to check if the plotted graph is correct
         just for user's information
-        not for validation
+        not for official validation
         """
 
         time_stamp_end = time.time()
@@ -2006,4 +2030,4 @@ class ThesisEnvExperiment(gym.Env):
                                                           self.evaluation_steps_tom, self.evaluation_steps_jerry,
                                                           self.evaluation_steps_roadrunner,
                                                           self.evaluation_steps_coyote, dirname=self.dirname)
-            # print("left plot loop")
+

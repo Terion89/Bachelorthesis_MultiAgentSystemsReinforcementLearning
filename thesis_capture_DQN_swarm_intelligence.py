@@ -223,8 +223,8 @@ if __name__ == '__main__':
 
     experiment_ID = ""
 
-    """ flag to turn on the group intern communication """
-    group_communication = False
+    """ flag to turn on the group intern communication - use later """
+    group_communication = True
 
     """ initial observation """
     obs1, obs2, obs3, obs4 = env.reset_world(t, overall_reward_agent_Tom,
@@ -251,7 +251,7 @@ if __name__ == '__main__':
                 every three steps: >1
                 every second step: >0
                 every step: ==0
-                never: == -200 beliebige Zahl, die < 0 ist, da der step_interval_counter hochzählt.
+                never: == -200 <- random number below 0
                 """
 
                 if step_interval_counter == 0:

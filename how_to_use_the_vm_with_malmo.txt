@@ -1,0 +1,70 @@
+##########################################################################################################################
+
+Kurz-Dokumentation der Bedienung der virtuellen Maschine
+
+##########################################################################################################################
+
+Die virtuelle Linux-Maschine, in der die Experimente durchgeführt wurden, wurde archiviert und steht für 
+weitere Versuche zur Verfügung. Im Ordner ~\home\petriale\MalmoPlatform\Minecraft befindet sich die 
+launchClient.sh Datei. Mit dieser werden, wie in Kapitel 3.2.3 der Bachelorarbeit beschrieben, in vier 
+separaten Terminal-Fenstern die Clients über den Befehl 
+
+./launchClient.sh -replaceable -port 1000X 
+
+nacheinander gestartet. Nacheinander bedeutet, dass der nächste Client erst gestartet wird, wenn das GUI-Fenster des 
+vorherigen erschienen ist. Hierbei wird Port 10000, 10001, 10002, 10003 und 10004 gewählt. 
+Diese Ports sind im Code in der ClientPool-Sektion festgelegt.
+Im Ordner ~\MalmoPlatform\build\install\Python_Examples sind die folgenden, 
+für das Experiment relevanten, Dateien enthalten: 
+
+[1.] thesis_capture_DQN_swarm_intelligence.py
+	Dies ist die Hauptdatei, in der sich die Main-Funktion befindet. 
+	Diese Datei wird ausgeführt, um das Experiment zu starten. Ab Zeile 130 werden die Agenten definiert.
+	Deren Anzahl kann beliebig erweitert werden. Bei einer Änderung müssen die Anzahl der Clients im 
+	ClientPool ab Zeile 91 im Code und der Agent_hosts ab Zeile 87 in (3) angepasst werden.
+	
+[2.] capture_the_flag_xml_mission_DQL_swarm_intelligence.xml
+	In diesem Dokument befindet sich die Beschreibung der Mission, wie in Kapitel 3.2.2 ausgeführt ist.
+	
+[3.] thesis_env_swarm_intelligence.py
+	Hier ist die Umgebung implementiert, die in Kapitel 4.1 beschrieben ist.
+
+[4.] observer.py
+	Vier Agenten sind DQN-Agenten, der fünfte ist der Top-Down-Beobachter. 
+	In observer.py ist seine Klasse OBSERVER definiert.
+	
+[5.] thesis_evaluation_swarm_intelligence.py
+	Hiermit wird ein Auswertungsgraph gezeichnet, der die Ergebnisse der Missionen im Überblick darstellt.
+
+Im Ordner ~\Python_Examples\results werden die Ergebnisse der Missionen gespeichert. Die Ordnernamen setzen 
+sich aus dem Startdatum und der Startzeit des Experiments zusammen. Darin werden die Models der Agenten und 
+die Plots mit allen Informationen der Missionen gespeichert. In den Run/Debug-Configurations der 
+PyCharm-Entwicklungsumgebung ist die Hauptdatei bereits unter dem Titel'Experiment' gespeichert. 
+Diese wird gestartet, sobald alle fünf GUI-Fenster den Build-Vorgang beendet haben.
+
+##########################################################################################################################
+
+Beim Starten der Missionen kann es zu folgenden Fehlerfällen kommen:
+
+WARNING - Error starting mission: There are not enough clients available in the ClientPool to start this 5 agent mission
+
+WARNING - Could not find the server for this mission. You need to start the agent wirth role 0 first.
+
+In beiden Fällen kann sich das Problem nach kurzer Wartezeit von selbst lösen, da beim Start möglicherweise noch nicht 
+alle Clients im Hintergrund vollständig gestartet oder nach einer Mission regeneriert sind.
+Zudem wird der Server in seltenen Fällen nicht sofort erkannt, hier wird das Problem ebenfalls nach einer 
+kurzen Wartezeit von selbst gelöst.
+
+Sollten eine oder beide Fehlermeldungen nach längerer Wartezeit weiterhin auftreten, liegt das an der Rechenauslastung 
+des Servers. Alle Clients müssen geschlossen und nacheinander neu gestartet werden.
+Hier trat ein Fehler in der Kommunikation der Clients beim Start auf.
+
+Ein weiterer Fehlerfall ist das Fehlen der XML Mission. Dies äussert sich, indem ein Agent nicht in der Arena erscheint,
+sondern auf einer grünen Wiese steht. Hier wurde die Missionsdatei nicht richtig übermittelt und das Experiment muss 
+abgebrochen und wieder neu gestartet werden.
+
+##########################################################################################################################
+
+Bei Fragen: a.o.p@gmx.de
+
+##########################################################################################################################
